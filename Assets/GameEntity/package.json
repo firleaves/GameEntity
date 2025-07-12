@@ -1,0 +1,19 @@
+{
+    "name": "com.firleaves.gameentity",
+    "displayName": "GameEntity",
+    "author": { "name": "firleaves", "url": "https://github.com/firleaves" },
+    "version": "0.1.0",
+    "unity": "2022.3",
+    "description": "GameEntity是一个轻量级的Unity实体组件系统，提供了高效的实体管理、组件依赖、异步加载、对象池及生命周期管理功能，简化游戏开发流程。",
+    "keywords": [ "entity", "component", "system", "GameEntity", "ECS", "dependency", "async" ],
+    "license": "MIT",
+    "category": "Game",
+    "dependencies": {
+        "com.cysharp.unitask": "2.5.10",
+        "com.unity.test-framework": "1.1.34"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/firleaves/GameEntity.git"
+    }
+}
