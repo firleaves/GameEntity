@@ -9,8 +9,7 @@
     "license": "MIT",
     "category": "Game",
     "dependencies": {
-        "com.cysharp.unitask": "2.5.10",
-        "com.unity.test-framework": "1.1.34"
+        "com.cysharp.unitask": "2.5.10"
     },
     "repository": {
         "type": "git",
