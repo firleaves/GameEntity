@@ -136,6 +136,6 @@ var asyncEntity = await parentEntity.AddComponentAsync<AsyncLoadEntity>();
 
 ## 致谢
 
-特别感谢ET框架（https://github.com/egametang/ET）提供的优秀实体组件系统设计，本框架在其基础上进行了提取和增强。
+特别感谢ET框架(https://github.com/egametang/ET) 提供的优秀实体组件系统设计，本框架在其基础上进行了提取和增强。
 
 
