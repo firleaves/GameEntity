@@ -19,7 +19,7 @@ namespace GE
             this.IScene = this;
             this.IsRegister = true;
             
-            Log.Info($"scene create: {this.Name} {this.Id} {this.InstanceId}");
+            // Log.Info($"scene create: {this.Name} {this.Id} {this.InstanceId}");
         }
 
         public Scene(long id, long instanceId,  string name)
@@ -32,7 +32,7 @@ namespace GE
             this.IScene = this;
             this.IsRegister = true;
     
-            Log.Info($"scene create: {this.Name} {this.Id} {this.InstanceId}");
+            // Log.Info($"scene create: {this.Name} {this.Id} {this.InstanceId}");
         }
 
         public override void Dispose()

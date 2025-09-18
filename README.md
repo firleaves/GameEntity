@@ -2,6 +2,8 @@
 
 GameEntity是一个轻量级的Unity实体组件系统，基于ET框架的Entity系统提取并增强而来。框架保留了ET的核心实体结构，并增加了异步加载、组件依赖等功能，为Unity游戏开发提供了更加灵活高效的实体管理解决方案。
 
+请查看 [详细文档](GameEntity说明.md)
+
 ## 开发背景
 
 本框架源自对ET框架Entity系统的提取和优化，旨在提供一个专注于实体管理的轻量级解决方案，同时扩展了以下核心功能：
@@ -120,24 +122,38 @@ public class HealthBarComponent : DependentComponentBase, IAwake, IUpdate
 
 ### 异步实体加载
 
+
 ```csharp
-// 定义异步实体
-public class AsyncLoadEntity : AsyncEntity, IAwake
+public class AsyncResourceLoader : AsyncEntity, IAwake<string>
 {
+    private string _resourcePath;
+
+    public void Awake(string resourcePath)
+    {
+        _resourcePath = resourcePath;
+    }
+
     protected override async UniTask OnLoadAsync(CancellationToken cancelToken)
     {
-        // 执行异步加载操作
-        await LoadAssetsAsync(cancelToken);
+        // 异步加载资源
+        await LoadResourceAsync(_resourcePath, cancelToken);
     }
-    
-    public void Awake()
+
+    protected override void OnLoaded()
     {
-        // 初始化逻辑
+        // 加载完成后的处理
+        GELog.Info($"Resource loaded: {_resourcePath}");
+    }
+
+    private async UniTask LoadResourceAsync(string path, CancellationToken token)
+    {
+        // 模拟异步加载
+        await UniTask.Delay(1000, cancellationToken: token);
     }
 }
 
-// 异步添加组件
-var asyncEntity = await parentEntity.AddComponentAsync<AsyncLoadEntity>();
+// 使用异步组件
+var loader = await entity.AddComponentAsync<AsyncResourceLoader, string>("path/to/resource");
 ```
 
 ## 致谢

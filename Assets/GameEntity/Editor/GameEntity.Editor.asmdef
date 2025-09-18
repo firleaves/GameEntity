@@ -2,9 +2,14 @@
     "name": "GameEntity.Editor",
     "rootNamespace": "",
     "references": [
-        "GUID:76734f3e8d5b5364e87c2e3e3d8646ac"
+        "GUID:76734f3e8d5b5364e87c2e3e3d8646ac",
+        "GUID:185999e4d3aadab45bf0f7ee77382397",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:363c5eb08ff8e6a439b85e37b8c20d96"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

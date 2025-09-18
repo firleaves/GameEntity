@@ -144,8 +144,23 @@ namespace GE
                 }
             }
         }
-        protected virtual string ViewName => GetType().FullName;
-
+        private string _viewName;
+        protected virtual string ViewName
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_viewName))
+                {
+                    _viewName = GetType().FullName;
+                }
+                return _viewName;
+            }
+            set
+            {
+                _viewName = value;
+                ViewGO.name = _viewName;
+            }
+        }
         public bool IsDisposed => InstanceId == 0;
 
 
@@ -498,7 +513,17 @@ namespace GE
             _children.TryGetValue(id, out Entity child);
             return child as K;
         }
-
+        public void ClearChildren()
+        {
+            if (_children != null)
+            {
+                var childrenCopy = new List<Entity>(_children.Values);
+                foreach (Entity child in childrenCopy)
+                {
+                    child.Dispose();
+                }
+            }
+        }
         public void RemoveChild(long id)
         {
             if (_children == null)
@@ -602,14 +627,20 @@ namespace GE
                 return null;
             }
 
-
-            Entity component;
-            if (!_components.TryGetValue(GetLongHashCode(typeof(K)), out component))
+            if (_components.TryGetValue(GetLongHashCode(typeof(K)), out var exactMatch))
             {
-                return default;
+                return (K)exactMatch;
             }
 
-            return (K)component;
+            foreach (var component in _components.Values)
+            {
+                if (component is K derivedMatch)
+                {
+                    return derivedMatch;
+                }
+            }
+
+            return null;
         }
 
         public Entity GetComponent(Type type)
@@ -694,6 +725,7 @@ namespace GE
             component.ComponentParent = this;
             var entitySystemSingleton = EntitySystem.Instance;
             entitySystemSingleton.Awake(component);
+            entitySystemSingleton.TryRegisterUpdate(component);
 
             return component as K;
         }
@@ -711,6 +743,7 @@ namespace GE
             component.ComponentParent = this;
             var entitySystemSingleton = EntitySystem.Instance;
             entitySystemSingleton.Awake(component, p1);
+            entitySystemSingleton.TryRegisterUpdate(component);
 
             return component as K;
         }
@@ -728,6 +761,7 @@ namespace GE
             component.ComponentParent = this;
             var entitySystemSingleton = EntitySystem.Instance;
             entitySystemSingleton.Awake(component, p1, p2);
+            entitySystemSingleton.TryRegisterUpdate(component);
 
             return component as K;
         }
@@ -745,6 +779,7 @@ namespace GE
             component.ComponentParent = this;
             var entitySystemSingleton = EntitySystem.Instance;
             entitySystemSingleton.Awake(component, p1, p2, p3);
+            entitySystemSingleton.TryRegisterUpdate(component);
 
             return component as K;
         }
@@ -810,6 +845,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -821,6 +857,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -832,6 +869,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a, b);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -843,6 +881,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a, b, c);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -853,6 +892,7 @@ namespace GE
             component.Id = id;
             component.Parent = this;
             EntitySystem.Instance.Awake(component);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -864,6 +904,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -875,6 +916,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a, b);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 
@@ -886,6 +928,7 @@ namespace GE
             component.Parent = this;
 
             EntitySystem.Instance.Awake(component, a, b, c);
+            EntitySystem.Instance.TryRegisterUpdate(component);
             return component;
         }
 

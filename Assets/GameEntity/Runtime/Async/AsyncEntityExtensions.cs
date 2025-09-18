@@ -45,14 +45,17 @@ namespace GE
 
             var component = entity.AddComponent(type, isFromPool) as AsyncEntity;
             component.Id = id;
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component);
+                // var entitySystemSingleton = EntitySystem.Instance;
+                // entitySystemSingleton.Awake(component);
                 component.ProcessComponentDependencies();
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -74,16 +77,18 @@ namespace GE
 
             var component = entity.AddComponent(type, isFromPool) as AsyncEntity;
             component.Id = id;
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component, p1);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-
-                entitySystemSingleton.Awake(component, id, p1);
+                // var entitySystemSingleton = EntitySystem.Instance;
+                // entitySystemSingleton.Awake(component, id, p1);
                 DependencyRegistry.Instance.NotifyAddComponent(entity, typeof(T));
                 component.ProcessComponentDependencies();
+                entitySystemSingleton.TryRegisterUpdate(component);
 
 
                 return component as T;
@@ -107,16 +112,18 @@ namespace GE
 
             var component = entity.AddComponent(type, isFromPool) as AsyncEntity;
             component.Id = id;
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component, id, p1, p2);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component, id, p1, p2);
+               
 
                 DependencyRegistry.Instance.NotifyAddComponent(entity, typeof(T));
                 component.ProcessComponentDependencies();
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -136,16 +143,18 @@ namespace GE
 
             var component = entity.AddComponent(type, isFromPool) as AsyncEntity;
             component.Id = id;
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component, id, p1, p2, p3);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component, id, p1, p2, p3);
+               
 
                 DependencyRegistry.Instance.NotifyAddComponent(entity, typeof(T));
                 component.ProcessComponentDependencies();
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -194,13 +203,14 @@ namespace GE
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
             component.Parent = entity;
-
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component);
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component);
+
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -222,13 +232,14 @@ namespace GE
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
             component.Parent = entity;
+              var entitySystemSingleton = EntitySystem.Instance;
+                entitySystemSingleton.Awake(component, p1);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component, p1);
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -251,13 +262,14 @@ namespace GE
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
             component.Parent = entity;
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component, p1, p2);
 
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component, p1, p2);
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;
@@ -280,13 +292,13 @@ namespace GE
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
             component.Parent = entity;
-
+            var entitySystemSingleton = EntitySystem.Instance;
+            entitySystemSingleton.Awake(component, p1, p2, p3);
             await AsyncEntityInitialize<T>(entity, component, cancelToken);
 
             if (component.IsLoaded)
             {
-                var entitySystemSingleton = EntitySystem.Instance;
-                entitySystemSingleton.Awake(component, p1, p2, p3);
+                entitySystemSingleton.TryRegisterUpdate(component);
                 return component as T;
             }
             return null;

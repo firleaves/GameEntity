@@ -59,6 +59,13 @@ namespace GE
             }
         }
 
+        
+        public void TryRegisterUpdate(Entity entity)
+        {
+            RegisterUpdate(entity);
+            RegisterLateUpdate(entity);
+        }
+
         /// <summary>
         /// 注册实体到更新列表
         /// </summary>
@@ -178,8 +185,6 @@ namespace GE
 
         /// <summary>
         /// 初始化实体
-        /// <summary>
-        /// 初始化实体
         /// </summary>
         public void Awake(Entity entity)
         {
@@ -190,9 +195,7 @@ namespace GE
                     awakable.Awake();
                 }
 
-                // 注册更新
-                RegisterUpdate(entity);
-                RegisterLateUpdate(entity);
+               
             }
             catch (Exception e)
             {
@@ -212,9 +215,7 @@ namespace GE
                     awakable.Awake(p1);
                 }
 
-                // 注册更新
-                RegisterUpdate(entity);
-                RegisterLateUpdate(entity);
+                
             }
             catch (Exception e)
             {
@@ -234,9 +235,7 @@ namespace GE
                     awakable.Awake(p1, p2);
                 }
 
-                // 注册更新
-                RegisterUpdate(entity);
-                RegisterLateUpdate(entity);
+              
             }
             catch (Exception e)
             {
@@ -256,9 +255,7 @@ namespace GE
                     awakable.Awake(p1, p2, p3);
                 }
 
-                // 注册更新
-                RegisterUpdate(entity);
-                RegisterLateUpdate(entity);
+                
             }
             catch (Exception e)
             {
@@ -278,8 +275,7 @@ namespace GE
                     awakable.Awake(p1, p2, p3, p4);
                 }
 
-                RegisterUpdate(entity);
-                RegisterLateUpdate(entity);
+              
             }
             catch (Exception e)
             {

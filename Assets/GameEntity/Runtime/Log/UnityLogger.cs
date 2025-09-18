@@ -7,7 +7,7 @@ namespace GE
     public class UnityLogger : ILogger
     {
         private bool _enableDebugLog = true;
-        private bool _enableInfoLog = true;     
+        private bool _enableInfoLog = true;  
         private bool _enableWarningLog = true;
         private bool _enableErrorLog = true;
 
