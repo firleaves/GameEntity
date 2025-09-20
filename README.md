@@ -103,19 +103,18 @@ var health = player.AddComponent<HealthComponent>();
 [DependsOn(typeof(HealthComponent))]
 public class HealthBarComponent : DependentComponentBase, IAwake, IUpdate
 {
+   //依赖组件存在时候,触发这个函数
     protected override void OnActivationChanged(bool isActive)
     {
         // 当依赖状态变化时被调用
         gameObject.SetActive(isActive);
     }
-    
+     // 只有当所有依赖满足时才会被调用
     public void Update(float time)
     {
-        // 只有当所有依赖满足时才会被调用
-        if (AreAllDependenciesMet)
-        {
-            UpdateHealthBar();
-        }
+      
+      UpdateHealthBar();
+        
     }
 }
 ```
