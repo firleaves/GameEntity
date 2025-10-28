@@ -194,11 +194,7 @@ namespace GE
             }
 
             Type type = typeof(T);
-            if (entity._components != null && entity._components.ContainsKey(entity.GetLongHashCode(type)))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
-
+           
 
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
@@ -224,10 +220,7 @@ namespace GE
             }
 
             Type type = typeof(T);
-            if (entity._components != null && entity._components.ContainsKey(entity.GetLongHashCode(type)))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
+          
 
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
@@ -253,11 +246,7 @@ namespace GE
             }
 
             Type type = typeof(T);
-            if (entity._components != null && entity._components.ContainsKey(entity.GetLongHashCode(type)))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
-
+           
 
             T component = (T)Entity.Create(type, isFromPool);
             component.Id = IdGenerator.Instance.GenerateId();
@@ -283,10 +272,7 @@ namespace GE
             }
 
             Type type = typeof(T);
-            if (entity._components != null && entity._components.ContainsKey(entity.GetLongHashCode(type)))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
+         
 
 
             T component = (T)Entity.Create(type, isFromPool);
