@@ -8,7 +8,7 @@
 
 ## 框架概述
 
-GameEntity (GE) 是一个实体组件系统(ECS)框架。它提供了一套完整的游戏对象管理解决方案，包括实体管理、层级（子节点），组件系统、依赖组件、异步处理、对象池化，生命周期（Awake/Update/LateUpdate/Destroy）等核心功能。
+GameEntity (GE) 是一个实体组件系统(ECS)框架。它提供了一套完整的游戏对象管理解决方案，包括实体管理、层级（子节点），组件系统、依赖组件、异步处理、对象池化，生命周期（Awake/Update/Destroy）等核心功能。
 
 ## 核心特性
 - **场景树结构**: 基于场景树结构管理节点组件，子节点，完整生命周期管理
@@ -27,35 +27,35 @@ GameEntity (GE) 是一个实体组件系统(ECS)框架。它提供了一套完�
 ## 系统详解
 
 ### 0.启动与基础概念
-- 启动：在首个场景放置 `GameEntityIniter`（MonoBehaviour）。它会设置 `World.Instance.Root`、注册单例（`EntitySystem`、`ObjectPool`、`IdGenerator`、`TimeInfo`）并初始化依赖系统。
+- 启动：`World.Instance` 是唯一默认全局入口。`World` 构造时会初始化时间、ID、对象池、生命周期、依赖和 hierarchy 服务。
 - 实体可视：每个 `Entity` 会生成一个 `ViewGO` 并挂载 `ComponentView`，层级与父子关系同步，便于在 Inspector 查看。
-- 生命周期： 跟随GameEntityIniter Awake ，Update，LateUpdate，Destroy控制World的生命周期
+- 生命周期：由宿主在主循环中调用 `World.Instance.Tick(deltaTime, unscaledDeltaTime)` 驱动。
 
 ### 1. World - 全局世界容器
 
-World是整个框架的核心容器，管理所有的单例系统和场景。
+World 是整个框架的核心容器，管理场景、EntityHierarchy 和核心服务。
 
 ```csharp
-// 获取World实例（单例）
+// 获取 World 默认实例
 World world = World.Instance;
-
-// 添加单例系统
-world.AddSingleton<EntitySystem>();
-world.AddSingleton<ObjectPool>();
 
 // 场景管理
 Scene scene = new MyScene("MainScene");
 world.AddScene("MainScene", scene);
+
+// 帧驱动
+world.Tick(deltaTime, unscaledDeltaTime);
 ```
 
 ### 2.Scene - 场景树
 
 - 新增业务场景：继承 `GE.Scene`，在构造函数指定名称
 - 添加 `World.Instance.AddScene(name, scene)` 注册。
+- `Scene` 构造函数只初始化场景身份；只有调用 `World.Instance.AddScene` 后，scene root 才会正式进入 hierarchy，才允许继续 `AddChild` / `AddComponent`。
 - 获取场景 World.Instance.GetScene(name)
 - 移除场景 World.Instance.RemoveScene(name)
 
-注意：Scene 不支持 ILifecycle（IAwake，IUpdate，ILateUpdate，IDestroy）里面生命周期接口继承使用
+注意：Scene 不支持 ILifecycle（IAwake，IUpdate，IDestroy）里面生命周期接口继承使用
 ```csharp
 public class MainScene : GE.Scene 
 { 
@@ -114,11 +114,10 @@ ILifecycle下面定义了生命周期接口
 
 - IAwake ： 支持多个泛型类型
 - IUpdate ： `void Update(float time);`参数为时间差,unity环境下面为unscaledDeltaTime
-- ILateUpdate： 和unity  lateupdate触发规则一样
 - IDestroy ： Entity销毁的时候会触发，用来清理entity内部数据
 
 ```csharp
-public class MyComponent : Entity, IAwake, IAwake<int>, IUpdate, ILateUpdate, IDestroy
+public class MyComponent : Entity, IAwake, IAwake<int>, IUpdate, IDestroy
 {
     public void Awake()
     {
@@ -133,11 +132,6 @@ public class MyComponent : Entity, IAwake, IAwake<int>, IUpdate, ILateUpdate, ID
     {
     }
 
-    public void LateUpdate()
-    {
-        // 延迟更新
-    }
-
     public void OnDestroy()
     {
         // 销毁时清理
@@ -148,7 +142,7 @@ public class MyComponent : Entity, IAwake, IAwake<int>, IUpdate, ILateUpdate, ID
 #### 自定义更新策略
 实现 `IHasUpdateStrategy` 返回自定义 `IUpdateStrategy` 可改变调用频率；也可组合 `AllStrategy/AnyStrategy`。
 
-- IUpdateStrategy: 用来告诉 EntitySystem 触发多少次Entity的Update
+- IUpdateStrategy: 用来告诉 World scheduler 触发多少次 Entity 的 Update
 - IHasUpdateStrategy：在Entity实现这个接口，改变更新频率
 - AllStrategy/AnyStrategy： 组合多种更新策略
 
@@ -195,7 +189,7 @@ public class MyEntity : Entity, IUpdate, IHasUpdateStrategy
 ### 5.依赖组件管理
 - 标注依赖：在组件类上添加 `[DependsOn(typeof(Foo), typeof(Bar))]`，或实现 `IDependentComponent.GetDependencyTypes()`。或者 继承 DependentComponentBase
 - 依赖组件条件满足，OnDependencyStatusChanged会被调用，AreAllDependenciesMet变量也会改变
-- Update，依赖条件成立，如果Entity实现了IUpdate接口，EntitySystem才会触发Entity的Update，如果条件不满足，就不会出触发Update。
+- Update：依赖条件成立后，如果 Entity 实现了 IUpdate 接口，World scheduler 才会触发 Entity 的 Update；条件不满足则不会触发。
 - 查询：`entity.AreDependenciesMet<T>()` 可检查某组件依赖是否满足。
 
 
@@ -240,13 +234,8 @@ var loader = await entity.AddComponentAsync<AsyncResourceLoader, string>("path/t
 - 调用 `Dispose()` 会：解绑视图、释放子节点与组件、通知系统 `Destroy`、将对象回收到池。
 
 ### 7.ObjectPool
-- Fetch<T> : 从对象池获得对象
-- Recycle ：回收对象到内存池
-
-```csharp
-var hashset = ObjectPool.Instance.Fetch<HashSet<string>>();
-ObjectPool.Instance.Recycle(hashset);
-```
+- 对象池是 `World` 生命周期内的内部服务，业务侧通过 `AddChild(..., isFromPool: true)` 或 `AddComponent(..., isFromPool: true)` 启用 Entity 池化。
+- 不推荐业务代码直接访问对象池；对象池实例会在 `World.Dispose()` 时清空。
 
 ## 推荐实践
 
@@ -310,6 +299,3 @@ public class ActionEntity : Entity, IAwake<IAction>,IUpdate,IDestroy
     }
 }
 ```
-
-
-

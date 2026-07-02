@@ -1,0 +1,20 @@
+{
+  "name": "GameEntity.Unity.Editor",
+  "rootNamespace": "GameEntity.Unity.Editor",
+  "references": [
+    "GameEntity.Unity"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "GameEntity.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

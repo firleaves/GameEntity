@@ -1,0 +1,15 @@
+{
+  "name": "com.firleaves.gameentity.unity",
+  "displayName": "GameEntity.Unity",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Unity adapter for GameEntity. Drives the pure C# runtime from Unity and mirrors Entity trees into GameObject hierarchy.",
+  "keywords": [
+    "gameentity",
+    "entity",
+    "unity",
+    "adapter",
+    "inspector"
+  ],
+  "license": "MIT"
+}
