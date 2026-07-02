@@ -2,13 +2,13 @@ namespace GameEntity
 {
     internal sealed class SceneScheduleBucket
     {
-        public SceneScheduleBucket(int sceneNodeId)
+        public SceneScheduleBucket(long sceneNodeId)
         {
             SceneNodeId = sceneNodeId;
             Update = new EntityUpdateBucket();
         }
 
-        public int SceneNodeId { get; }
+        public long SceneNodeId { get; }
 
         public EntityUpdateBucket Update { get; }
 

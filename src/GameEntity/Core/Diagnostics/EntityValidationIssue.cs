@@ -11,7 +11,7 @@ namespace GameEntity
     /// </summary>
     public sealed class EntityValidationIssue
     {
-        private EntityValidationIssue(int nodeId, string code, string message, EntityValidationSeverity severity)
+        private EntityValidationIssue(long nodeId, string code, string message, EntityValidationSeverity severity)
         {
             NodeId = nodeId;
             Code = code;
@@ -19,7 +19,7 @@ namespace GameEntity
             Severity = severity;
         }
 
-        public int NodeId { get; }
+        public long NodeId { get; }
 
         public string Code { get; }
 
@@ -27,12 +27,12 @@ namespace GameEntity
 
         public EntityValidationSeverity Severity { get; }
 
-        public static EntityValidationIssue Error(int nodeId, string code, string message)
+        public static EntityValidationIssue Error(long nodeId, string code, string message)
         {
             return new EntityValidationIssue(nodeId, code, message, EntityValidationSeverity.Error);
         }
 
-        public static EntityValidationIssue Warning(int nodeId, string code, string message)
+        public static EntityValidationIssue Warning(long nodeId, string code, string message)
         {
             return new EntityValidationIssue(nodeId, code, message, EntityValidationSeverity.Warning);
         }

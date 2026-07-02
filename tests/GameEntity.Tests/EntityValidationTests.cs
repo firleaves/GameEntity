@@ -13,10 +13,10 @@ namespace GameEntity.Tests
 
             Assert.True(World.Instance.ValidateEntities().IsValid);
 
-            component.Dispose();
+            component.Destroy();
             Assert.True(World.Instance.ValidateEntities().IsValid);
 
-            entity.Dispose();
+            entity.Destroy();
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 

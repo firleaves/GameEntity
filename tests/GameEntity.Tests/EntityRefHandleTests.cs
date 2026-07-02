@@ -17,20 +17,20 @@ namespace GameEntity.Tests
         }
 
         [Fact]
-        public void EntityRef_ShouldNotResolveReusedNodeWithOldGeneration()
+        public void EntityRef_ShouldNotResolveDestroyedHandleWhenNewNodeIsCreated()
         {
-            TestScene scene = CreateScene("ref-reuse");
+            TestScene scene = CreateScene("ref-destroyed-handle");
             ProbeEntity first = scene.AddChild<ProbeEntity>();
             EntityRef<ProbeEntity> oldRef = first;
             EntityHandle oldHandle = oldRef.Handle;
 
-            first.Dispose();
+            first.Destroy();
             ProbeEntity second = scene.AddChild<ProbeEntity>();
 
-            Assert.Equal(oldHandle.NodeId, second.Handle.NodeId);
-            Assert.NotEqual(oldHandle.Generation, second.Handle.Generation);
+            Assert.NotEqual(oldHandle.NodeId, second.Handle.NodeId);
             Assert.False(oldRef.IsAlive);
             Assert.False(oldRef.TryGet(out _));
+            Assert.False(World.Instance.TryResolve(oldHandle, out ProbeEntity _));
             Assert.True(World.Instance.TryResolve(second.Handle, out ProbeEntity resolved));
             Assert.Same(second, resolved);
         }

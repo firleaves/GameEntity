@@ -4,10 +4,10 @@ namespace GameEntity
 {
     internal sealed class SceneRegistry
     {
-        private readonly Dictionary<string, int> _sceneNameToNodeId = new Dictionary<string, int>();
-        private readonly Dictionary<int, string> _sceneNameByNodeId = new Dictionary<int, string>();
+        private readonly Dictionary<string, long> _sceneNameToNodeId = new Dictionary<string, long>();
+        private readonly Dictionary<long, string> _sceneNameByNodeId = new Dictionary<long, string>();
 
-        public void Register(string sceneName, int sceneNodeId)
+        public void Register(string sceneName, long sceneNodeId)
         {
             if (string.IsNullOrEmpty(sceneName))
             {
@@ -18,12 +18,12 @@ namespace GameEntity
             _sceneNameByNodeId[sceneNodeId] = sceneName;
         }
 
-        public bool TryGetSceneNodeId(string sceneName, out int sceneNodeId)
+        public bool TryGetSceneNodeId(string sceneName, out long sceneNodeId)
         {
             return _sceneNameToNodeId.TryGetValue(sceneName, out sceneNodeId);
         }
 
-        public void Unregister(int sceneNodeId)
+        public void Unregister(long sceneNodeId)
         {
             if (!_sceneNameByNodeId.TryGetValue(sceneNodeId, out var sceneName))
             {

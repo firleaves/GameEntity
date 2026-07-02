@@ -69,17 +69,17 @@ namespace GameEntity
             }
         }
 
-        internal static void NotifyEntityDisposed(Entity entity)
+        internal static void NotifyEntityDestroyed(Entity entity)
         {
             foreach (IEntityTreeObserver observer in Snapshot())
             {
                 try
                 {
-                    observer.OnEntityDisposed(entity);
+                    observer.OnEntityDestroyed(entity);
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"Entity tree observer dispose error: {e}");
+                    Log.Error($"Entity tree observer destroy error: {e}");
                 }
             }
         }

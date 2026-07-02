@@ -231,7 +231,7 @@ var loader = await entity.AddComponentAsync<AsyncResourceLoader, string>("path/t
 
 ### 6.Entity 使用对象池与释放
 - 大多创建 API 有 `isFromPool` 参数；若为 `true`，实例来自 `ObjectPool`。
-- 调用 `Dispose()` 会：解绑视图、释放子节点与组件、通知系统 `Destroy`、将对象回收到池。
+- 调用 `Destroy()` 会：解绑视图、释放子节点与组件、通知系统 `Destroy`、将对象回收到池。
 
 ### 7.ObjectPool
 - 对象池是 `World` 生命周期内的内部服务，业务侧通过 `AddChild(..., isFromPool: true)` 或 `AddComponent(..., isFromPool: true)` 启用 Entity 池化。

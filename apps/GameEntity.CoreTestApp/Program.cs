@@ -66,25 +66,24 @@ namespace GameEntity.CoreTestApp
             Expect(effect.UpdateCount == 5, "effect 应该被 World.Tick 驱动。");
 
             actor.RemoveComponent<AbilitySystemComponent>();
-            Expect(!actor.IsDisposed, "移除 component 不应该销毁 actor。");
-            Expect(abilitySystem.IsDisposed, "移除 component 应该销毁 abilitySystem。");
-            Expect(effect.IsDisposed, "移除 component 应该级联销毁 effect。");
+            Expect(!actor.IsDestroyed, "移除 component 不应该销毁 actor。");
+            Expect(abilitySystem.IsDestroyed, "移除 component 应该销毁 abilitySystem。");
+            Expect(effect.IsDestroyed, "移除 component 应该级联销毁 effect。");
             Expect(!effectRef.IsAlive, "effect 的 EntityRef 应该自然失效。");
             Expect(!World.Instance.TryResolve(effectHandle, out CoreEffect _), "旧 effect handle 应该无法解析。");
             Expect(!World.Instance.TryResolve(abilityHandle, out AbilitySystemComponent _), "旧 abilitySystem handle 应该无法解析。");
             Expect(World.Instance.ValidateEntities().IsValid, "移除 component 后 hierarchy 结构必须有效。");
 
             var newAbilitySystem = actor.AddComponent<AbilitySystemComponent>();
-            Expect(newAbilitySystem.Handle.NodeId == abilityHandle.NodeId, "hierarchy 应该复用释放后的 abilitySystem node slot。");
-            Expect(newAbilitySystem.Handle.Generation != abilityHandle.Generation, "复用 node slot 时 Generation 必须递增。");
+            Expect(newAbilitySystem.Handle.NodeId != abilityHandle.NodeId, "新 abilitySystem 应该分配新的 node id。");
             Expect(World.Instance.TryResolve(newAbilitySystem.Handle, out AbilitySystemComponent resolvedAbility) && resolvedAbility == newAbilitySystem, "新 abilitySystem handle 应该能解析。");
             Expect(!World.Instance.TryResolve(abilityHandle, out AbilitySystemComponent _), "旧 abilitySystem handle 不应该误解析到新对象。");
 
-            scene.Dispose();
-            Expect(actor.IsDisposed, "scene dispose 应该级联销毁 actor。");
-            Expect(newAbilitySystem.IsDisposed, "scene dispose 应该级联销毁新 abilitySystem。");
-            Expect(World.Instance.CaptureEntitySnapshot().Nodes.Count == 0, "scene dispose 后 hierarchy 节点应清空。");
-            Expect(World.Instance.ValidateEntities().IsValid, "scene dispose 后 hierarchy 结构仍应有效。");
+            scene.Destroy();
+            Expect(actor.IsDestroyed, "scene destroy 应该级联销毁 actor。");
+            Expect(newAbilitySystem.IsDestroyed, "scene destroy 应该级联销毁新 abilitySystem。");
+            Expect(World.Instance.CaptureEntitySnapshot().Nodes.Count == 0, "scene destroy 后 hierarchy 节点应清空。");
+            Expect(World.Instance.ValidateEntities().IsValid, "scene destroy 后 hierarchy 结构仍应有效。");
         }
 
         private static void RunFrames(int count)

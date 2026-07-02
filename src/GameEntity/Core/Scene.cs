@@ -31,11 +31,11 @@ namespace GameEntity
             }
         }
 
-        public override void Dispose()
+        public override void Destroy()
         {
-            base.Dispose();
+            base.Destroy();
 
-            Log.Info($"scene dispose: {this.Name} {this.Id} {this.InstanceId}");
+            Log.Info($"scene destroy: {this.Name} {this.Id} {this.InstanceId}");
         }
 
         public virtual void Awake()

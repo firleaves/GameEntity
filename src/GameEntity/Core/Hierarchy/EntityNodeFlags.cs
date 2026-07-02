@@ -7,6 +7,6 @@ namespace GameEntity
     {
         None = 0,
         Alive = 1,
-        Disposing = 1 << 1,
+        Destroying = 1 << 1,
     }
 }

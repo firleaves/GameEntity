@@ -14,7 +14,7 @@ namespace GameEntity
         IsNew = 1 << 4,
     }
 
-    public class Entity : IDisposable, IPool
+    public class Entity : IPool
     {
         /// <summary>
         /// 对比两个Entity是否是同一个实体
@@ -30,11 +30,11 @@ namespace GameEntity
         private string _viewName;
         private Scene _scene;
         private EntityHierarchy _hierarchy;
-        private bool _hierarchyDisposeCompleted;
+        private bool _hierarchyDestroyCompleted;
 
-        internal EntityHandle GraphHandle { get; private set; } = EntityHandle.None;
+        internal EntityHandle HierarchyHandle { get; private set; } = EntityHandle.None;
 
-        public EntityHandle Handle => GraphHandle;
+        public EntityHandle Handle => HierarchyHandle;
 
         internal bool IsFromPool
         {
@@ -154,7 +154,7 @@ namespace GameEntity
             return ViewName;
         }
 
-        public bool IsDisposed => InstanceId == 0;
+        public bool IsDestroyed => InstanceId == 0;
 
         // 父实体。V2 中父关系由 EntityHierarchy 维护，这里只做 façade 查询和挂接入口。
         public Entity Parent
@@ -174,7 +174,7 @@ namespace GameEntity
                     throw new Exception($"cant set parent null: {GetType().FullName}");
                 }
 
-                ResolveGraph(value).AttachComponent(value, this);
+                ResolveHierarchy(value).AttachComponent(value, this);
             }
         }
 
@@ -224,9 +224,9 @@ namespace GameEntity
             return _hierarchy?.GetAllChildren(this) ?? Array.Empty<Entity>();
         }
 
-        public virtual void Dispose()
+        public virtual void Destroy()
         {
-            if (IsDisposed)
+            if (IsDestroyed)
             {
                 return;
             }
@@ -237,16 +237,14 @@ namespace GameEntity
                 return;
             }
 
-            BeginDisposeFromGraph();
-            DisposeSelfFromGraph();
+            BeginDestroyFromHierarchy();
+            DestroySelfFromHierarchy();
         }
 
         /// <summary>
-        /// Optional hook for derived classes.
-        /// NOTE: the original Unity-first code accidentally called Dispose() recursively here.
-        /// In the .NET standalone copy, we keep a hook to preserve intent without recursion.
+        /// 派生类可重写的内部销毁钩子。外部业务释放统一调用 Destroy()。
         /// </summary>
-        protected virtual void OnDispose()
+        protected virtual void OnDestroyInternal()
         {
         }
 
@@ -273,7 +271,7 @@ namespace GameEntity
 
         public void RemoveChild(long id)
         {
-            if (IsDisposed)
+            if (IsDestroyed)
             {
                 return;
             }
@@ -288,7 +286,7 @@ namespace GameEntity
 
         public void RemoveComponent(Type type)
         {
-            if (IsDisposed)
+            if (IsDestroyed)
             {
                 return;
             }
@@ -298,7 +296,7 @@ namespace GameEntity
 
         private void RemoveComponent(Entity component)
         {
-            if (IsDisposed)
+            if (IsDestroyed)
             {
                 return;
             }
@@ -436,7 +434,7 @@ namespace GameEntity
                 throw new Exception($"cant set parent null: {GetType().FullName}");
             }
 
-            ResolveGraph(owner).AttachChild(owner, this);
+            ResolveHierarchy(owner).AttachChild(owner, this);
         }
 
         internal static Entity Create(World world, Type type, bool isFromPool)
@@ -451,7 +449,7 @@ namespace GameEntity
                 entity = Activator.CreateInstance(type) as Entity;
             }
 
-            entity.ResetGraphStateForCreate(isFromPool);
+            entity.ResetHierarchyStateForCreate(isFromPool);
             return entity;
         }
 
@@ -889,34 +887,34 @@ namespace GameEntity
             return type.TypeHandle.Value.ToInt64();
         }
 
-        internal void AssignGraphHandle(EntityHierarchy hierarchy, EntityHandle handle)
+        internal void AssignHierarchyHandle(EntityHierarchy hierarchy, EntityHandle handle)
         {
             _hierarchy = hierarchy;
-            GraphHandle = handle;
-            _hierarchyDisposeCompleted = false;
+            HierarchyHandle = handle;
+            _hierarchyDestroyCompleted = false;
         }
 
-        internal void ClearGraphHandle()
+        internal void ClearHierarchyHandle()
         {
-            GraphHandle = EntityHandle.None;
+            HierarchyHandle = EntityHandle.None;
             _hierarchy = null;
         }
 
-        internal void BeginDisposeFromGraph()
+        internal void BeginDestroyFromHierarchy()
         {
             IsRegister = false;
             InstanceId = 0;
         }
 
-        internal void DisposeSelfFromGraph()
+        internal void DestroySelfFromHierarchy()
         {
-            if (_hierarchyDisposeCompleted)
+            if (_hierarchyDestroyCompleted)
             {
                 return;
             }
 
-            _hierarchyDisposeCompleted = true;
-            BeginDisposeFromGraph();
+            _hierarchyDestroyCompleted = true;
+            BeginDestroyFromHierarchy();
 
             World world = _hierarchy?.World ?? World.Instance;
             if (this is IDestroy)
@@ -926,9 +924,9 @@ namespace GameEntity
 
             _scene = null;
 
-            OnDispose();
+            OnDestroyInternal();
 
-            EntityTreeEventHub.NotifyEntityDisposed(this);
+            EntityTreeEventHub.NotifyEntityDestroyed(this);
 
             bool isFromPool = IsFromPool;
             _status = EntityStatus.None;
@@ -937,7 +935,7 @@ namespace GameEntity
             world.ObjectPool.Recycle(this);
         }
 
-        internal void SetSceneFromGraph(Scene scene)
+        internal void SetSceneFromHierarchy(Scene scene)
         {
             if (scene == null)
             {
@@ -968,11 +966,11 @@ namespace GameEntity
             }
         }
 
-        private void ResetGraphStateForCreate(bool isFromPool)
+        private void ResetHierarchyStateForCreate(bool isFromPool)
         {
             _hierarchy = null;
-            GraphHandle = EntityHandle.None;
-            _hierarchyDisposeCompleted = false;
+            HierarchyHandle = EntityHandle.None;
+            _hierarchyDestroyCompleted = false;
             _scene = null;
             InstanceId = 0;
             Id = 0;
@@ -983,7 +981,7 @@ namespace GameEntity
             IsNew = true;
         }
 
-        private static EntityHierarchy ResolveGraph(Entity owner)
+        private static EntityHierarchy ResolveHierarchy(Entity owner)
         {
             return owner._hierarchy ?? World.Instance.Hierarchy;
         }

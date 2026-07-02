@@ -6,35 +6,22 @@ namespace GameEntity
 {
     internal sealed class NodeStore
     {
-        private int _nextNodeId;
-        private readonly Dictionary<int, EntityNode> _records = new Dictionary<int, EntityNode>();
-        private readonly Dictionary<int, int> _generations = new Dictionary<int, int>();
-        private readonly Stack<int> _freeNodeIds = new Stack<int>();
-        private readonly Dictionary<int, SortedDictionary<long, int>> _childrenByOwner = new Dictionary<int, SortedDictionary<long, int>>();
-        private readonly Dictionary<int, SortedDictionary<long, int>> _componentsByOwner = new Dictionary<int, SortedDictionary<long, int>>();
+        private readonly IdGenerator _idGenerator;
+        private readonly Dictionary<long, EntityNode> _records = new Dictionary<long, EntityNode>();
+        private readonly Dictionary<long, SortedDictionary<long, long>> _childrenByOwner = new Dictionary<long, SortedDictionary<long, long>>();
+        private readonly Dictionary<long, SortedDictionary<long, long>> _componentsByOwner = new Dictionary<long, SortedDictionary<long, long>>();
 
-        public EntityHandle CreateNode(Entity entity, EntityNodeKind kind, int ownerNodeId, int sceneNodeId, long componentTypeId)
+        public NodeStore(IdGenerator idGenerator)
         {
-            int nodeId;
-            int generation;
-            if (_freeNodeIds.Count > 0)
-            {
-                nodeId = _freeNodeIds.Pop();
-                generation = _generations.TryGetValue(nodeId, out var currentGeneration)
-                    ? currentGeneration + 1
-                    : 1;
-            }
-            else
-            {
-                nodeId = ++_nextNodeId;
-                generation = 1;
-            }
+            _idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
+        }
 
-            _generations[nodeId] = generation;
+        public EntityHandle CreateNode(Entity entity, EntityNodeKind kind, long ownerNodeId, long sceneNodeId, long componentTypeId)
+        {
+            long nodeId = _idGenerator.GenerateId();
             var record = new EntityNode
             {
                 NodeId = nodeId,
-                Generation = generation,
                 EntityId = entity.Id,
                 InstanceId = entity.InstanceId,
                 OwnerNodeId = ownerNodeId,
@@ -48,12 +35,12 @@ namespace GameEntity
             return record.Handle;
         }
 
-        public bool TryGetRecord(int nodeId, out EntityNode record)
+        public bool TryGetNode(long nodeId, out EntityNode record)
         {
             return _records.TryGetValue(nodeId, out record);
         }
 
-        public bool TryGetRecord(EntityHandle handle, out EntityNode record)
+        public bool TryGetNode(EntityHandle handle, out EntityNode record)
         {
             if (!handle.IsValid || !_records.TryGetValue(handle.NodeId, out record))
             {
@@ -61,60 +48,72 @@ namespace GameEntity
                 return false;
             }
 
-            return record.Generation == handle.Generation && record.IsAlive;
+            return record.IsAlive;
         }
 
-        public EntityNode GetRecord(int nodeId)
+        public EntityNode GetNode(long nodeId)
         {
             return _records[nodeId];
         }
 
-        public void SetRecord(EntityNode record)
+        public void SetNode(EntityNode record)
         {
             _records[record.NodeId] = record;
         }
 
-        public void SetInstanceId(int nodeId, long instanceId)
+        public void SetInstanceId(long nodeId, long instanceId)
         {
             var record = _records[nodeId];
             record.InstanceId = instanceId;
             _records[nodeId] = record;
         }
 
-        public void SetSceneNodeId(int nodeId, int sceneNodeId)
+        public void SetSceneNodeId(long nodeId, long sceneNodeId)
         {
             var record = _records[nodeId];
             record.SceneNodeId = sceneNodeId;
             _records[nodeId] = record;
         }
 
-        public void SetDisposing(int nodeId)
+        public void SetDestroying(long nodeId)
         {
             var record = _records[nodeId];
-            record.Flags |= EntityNodeFlags.Disposing;
+            record.Flags |= EntityNodeFlags.Destroying;
             _records[nodeId] = record;
         }
 
-        public void AttachChild(int ownerNodeId, int childNodeId, long entityId)
+        public void AttachChild(long ownerNodeId, long childNodeId, long entityId)
         {
             if (!_childrenByOwner.TryGetValue(ownerNodeId, out var children))
             {
-                children = new SortedDictionary<long, int>();
+                children = new SortedDictionary<long, long>();
                 _childrenByOwner.Add(ownerNodeId, children);
             }
 
             children.Add(entityId, childNodeId);
         }
 
-        public void AttachComponent(int ownerNodeId, int componentNodeId, long componentTypeId)
+        public void AttachComponent(long ownerNodeId, long componentNodeId, long componentTypeId)
         {
             if (!_componentsByOwner.TryGetValue(ownerNodeId, out var components))
             {
-                components = new SortedDictionary<long, int>();
+                components = new SortedDictionary<long, long>();
                 _componentsByOwner.Add(ownerNodeId, components);
             }
 
             components.Add(componentTypeId, componentNodeId);
+        }
+
+        public bool HasComponent(long ownerNodeId, long componentTypeId, long exceptNodeId = 0)
+        {
+            return TryGetComponent(ownerNodeId, componentTypeId, out var componentNodeId) && componentNodeId != exceptNodeId;
+        }
+
+        public bool TryGetComponent(long ownerNodeId, long componentTypeId, out long componentNodeId)
+        {
+            componentNodeId = 0;
+            return _componentsByOwner.TryGetValue(ownerNodeId, out var components) &&
+                   components.TryGetValue(componentTypeId, out componentNodeId);
         }
 
         public void DetachFromOwner(EntityNode record)
@@ -136,54 +135,50 @@ namespace GameEntity
             }
         }
 
-        public bool HasChild(int ownerNodeId, long entityId, int exceptNodeId = 0)
+        public bool HasChild(long ownerNodeId, long entityId, long exceptNodeId = 0)
         {
             return TryGetChild(ownerNodeId, entityId, out var childNodeId) && childNodeId != exceptNodeId;
         }
 
-        public bool TryGetChild(int ownerNodeId, long entityId, out int childNodeId)
+        public bool TryGetChild(long ownerNodeId, long entityId, out long childNodeId)
         {
             childNodeId = 0;
             return _childrenByOwner.TryGetValue(ownerNodeId, out var children) &&
                    children.TryGetValue(entityId, out childNodeId);
         }
 
-        public IReadOnlyList<int> GetChildren(int ownerNodeId)
+        public IReadOnlyList<long> GetChildren(long ownerNodeId)
         {
             return _childrenByOwner.TryGetValue(ownerNodeId, out var children)
                 ? children.Values.ToList()
-                : Array.Empty<int>();
+                : Array.Empty<long>();
         }
 
-        public int GetChildrenCount(int ownerNodeId)
+        public int GetChildrenCount(long ownerNodeId)
         {
             return _childrenByOwner.TryGetValue(ownerNodeId, out var children) ? children.Count : 0;
         }
 
-        public IReadOnlyList<int> GetComponents(int ownerNodeId)
+        public IReadOnlyList<long> GetComponents(long ownerNodeId)
         {
             return _componentsByOwner.TryGetValue(ownerNodeId, out var components)
                 ? components.Values.ToList()
-                : Array.Empty<int>();
+                : Array.Empty<long>();
         }
 
-        public int GetComponentsCount(int ownerNodeId)
+        public int GetComponentsCount(long ownerNodeId)
         {
             return _componentsByOwner.TryGetValue(ownerNodeId, out var components) ? components.Count : 0;
         }
 
-        public void RemoveNode(int nodeId)
+        public void RemoveNode(long nodeId)
         {
-            if (_records.Remove(nodeId))
-            {
-                _freeNodeIds.Push(nodeId);
-            }
-
+            _records.Remove(nodeId);
             _childrenByOwner.Remove(nodeId);
             _componentsByOwner.Remove(nodeId);
         }
 
-        public IReadOnlyList<EntityNode> GetAllRecords()
+        public IReadOnlyList<EntityNode> GetAllNodes()
         {
             return _records.Values.ToList();
         }
@@ -212,7 +207,7 @@ namespace GameEntity
             return false;
         }
 
-        public IReadOnlyList<int> GetSceneRoots()
+        public IReadOnlyList<long> GetSceneRoots()
         {
             return _records.Values
                 .Where(r => r.Kind == EntityNodeKind.SceneRoot && r.IsAlive)
@@ -223,14 +218,11 @@ namespace GameEntity
         public void Clear()
         {
             _records.Clear();
-            _generations.Clear();
-            _freeNodeIds.Clear();
             _childrenByOwner.Clear();
             _componentsByOwner.Clear();
-            _nextNodeId = 0;
         }
 
-        private void RemoveChild(int ownerNodeId, long entityId, int childNodeId)
+        private void RemoveChild(long ownerNodeId, long entityId, long childNodeId)
         {
             if (!_childrenByOwner.TryGetValue(ownerNodeId, out var children))
             {
@@ -248,7 +240,7 @@ namespace GameEntity
             }
         }
 
-        private void RemoveComponent(int ownerNodeId, long componentTypeId, int componentNodeId)
+        private void RemoveComponent(long ownerNodeId, long componentTypeId, long componentNodeId)
         {
             if (!_componentsByOwner.TryGetValue(ownerNodeId, out var components))
             {

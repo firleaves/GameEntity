@@ -4,24 +4,24 @@ namespace GameEntity
 {
     internal sealed class ObjectStore
     {
-        private readonly Dictionary<int, Entity> _objects = new Dictionary<int, Entity>();
+        private readonly Dictionary<long, Entity> _objects = new Dictionary<long, Entity>();
 
         public void Add(EntityHandle handle, Entity entity)
         {
             _objects[handle.NodeId] = entity;
         }
 
-        public bool TryGet(int nodeId, out Entity entity)
+        public bool TryGet(long nodeId, out Entity entity)
         {
             return _objects.TryGetValue(nodeId, out entity);
         }
 
-        public Entity Get(int nodeId)
+        public Entity Get(long nodeId)
         {
             return _objects[nodeId];
         }
 
-        public void Remove(int nodeId)
+        public void Remove(long nodeId)
         {
             _objects.Remove(nodeId);
         }

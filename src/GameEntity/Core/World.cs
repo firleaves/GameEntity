@@ -75,14 +75,16 @@ namespace GameEntity
 
         public void Dispose()
         {
-            _instance = null;
-
             Hierarchy.Dispose();
-            Hierarchy.Scheduler.Clear();
             Dependencies.Clear();
             ObjectPool.Clear();
             Time.Reset();
             _scenes.Clear();
+
+            if (ReferenceEquals(_instance, this))
+            {
+                _instance = null;
+            }
         }
 
         public Scene AddScene(string sceneName, Scene scene)
@@ -95,6 +97,11 @@ namespace GameEntity
             if (_scenes.ContainsKey(sceneName))
             {
                 throw new Exception($"scene {sceneName} already exists");
+            }
+
+            if (scene.Name != sceneName)
+            {
+                throw new Exception($"scene name mismatch: key {sceneName}, scene {scene.Name}");
             }
 
             if (scene.Handle.IsValid)
@@ -116,8 +123,21 @@ namespace GameEntity
         {
             if (_scenes.TryGetValue(sceneName, out var scene))
             {
-                scene.Dispose();
+                scene.Destroy();
                 _scenes.Remove(sceneName);
+            }
+        }
+
+        internal void UnregisterScene(Scene scene)
+        {
+            if (scene == null)
+            {
+                return;
+            }
+
+            if (_scenes.TryGetValue(scene.Name, out var registeredScene) && ReferenceEquals(registeredScene, scene))
+            {
+                _scenes.Remove(scene.Name);
             }
         }
     }

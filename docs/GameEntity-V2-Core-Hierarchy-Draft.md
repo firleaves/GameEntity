@@ -50,7 +50,7 @@ var comp = Parent.GetComponent<SomeComponent>();
 
 - 对象被销毁后，外部仍持有旧引用
 - 对象池复用后，旧引用可能误指向新实例
-- 调用前需要大量 `IsDisposed` 判断
+- 调用前需要大量 `IsDestroyed` 判断
 
 虽然已有 `EntityRef<T>` 雏形，但还没有提升成正式设计约束。
 
@@ -120,7 +120,6 @@ GameEntity V2
 │   ├── SceneRegistry
 │   ├── NodeStore
 │   ├── ObjectStore
-│   ├── ComponentIndexStore
 │   ├── Scheduler
 │   └── Snapshot / Sync Support
 └── Optional Packed Data Layer
@@ -140,20 +139,12 @@ GameEntity V2
 
 建议特性：
 
-- 全局唯一
-- 可重复利用，但必须配合 `Generation`
+- `long` 类型
+- 由 `World.IdGenerator` 生成
+- World 生命周期内单调递增
+- 销毁后不回收、不复用
 - 不与业务 `Id` 混用
-
-### Generation
-
-`Generation` 用于处理对象销毁后节点复用带来的失效问题。
-
-如果一个节点被回收再利用：
-
-- `NodeId` 可能相同
-- `Generation` 必须变化
-
-这样旧句柄就能判断自己是否已失效。
+- 旧 handle 失效依赖对应 node 记录被删除，而不是槽位版本
 
 ### EntityHandle
 
@@ -162,7 +153,6 @@ GameEntity V2
 建议字段：
 
 - `NodeId`
-- `Generation`
 
 建议能力：
 
@@ -199,17 +189,16 @@ V2 不建议把当前所有节点粗暴并成一种语义。
 ```csharp
 internal struct EntityNode
 {
-    public int NodeId;
-    public int Generation;
+    public long NodeId;
     public long EntityId;
     public long InstanceId;
 
-    public int SceneNodeId;
-    public int OwnerNodeId;
-    public int FirstChildNodeId;
-    public int NextChildSiblingNodeId;
-    public int FirstComponentNodeId;
-    public int NextComponentSiblingNodeId;
+    public long SceneNodeId;
+    public long OwnerNodeId;
+    public long FirstChildNodeId;
+    public long NextChildSiblingNodeId;
+    public long FirstComponentNodeId;
+    public long NextComponentSiblingNodeId;
 
     public int ComponentTypeId;
     public EntityNodeKind Kind;
@@ -243,7 +232,6 @@ EntityHierarchy
 ├── SceneRegistry
 ├── NodeStore
 ├── ObjectStore
-├── ComponentIndexStore
 ├── Scheduler
 └── EntityValidation
 ```
@@ -334,7 +322,7 @@ V2 继续采用单 owner 模型。
 
 - 每个节点有且只有一个 owner
 - 每个节点只能 rooted 到一个 scene
-- `Dispose(owner)` 默认等于 `DisposeSubtree(owner)`
+- `Destroy(owner)` 默认等于 `DestroySubtree(owner)`
 
 ## 激活与 rooted 规则
 
@@ -384,7 +372,7 @@ V2 中 `Entity` 对象继续存在，但不再持有结构真相。
 - `AddChild<T>()`
 - `AddComponent<T>()`
 - `GetComponent<T>()`
-- `Dispose()`
+- `Destroy()`
 
 这些 API 的业务体验应继续保留。
 
@@ -439,7 +427,7 @@ V2 建议把它做得更正式：
 - 增加 `TryGet`
 - 对齐未来 `EntityHandle`
 
-最终目标是让外部引用在对象销毁后自然失效，而不是继续依赖手工 `IsDisposed` 判断。
+最终目标是让外部引用在对象销毁后自然失效，而不是继续依赖手工 `IsDestroyed` 判断。
 
 ## Scheduler 设计
 
@@ -538,9 +526,9 @@ V2 不应该把“改成 hierarchy 内核”误解为“立刻变快很多”。
 
 目标：
 
-- attribute graph
-- effect graph
-- tag graph
+- attribute network
+- effect pipeline
+- tag index
 - replication state
 
 收益：

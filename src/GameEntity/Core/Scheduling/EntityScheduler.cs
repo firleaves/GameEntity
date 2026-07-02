@@ -6,7 +6,7 @@ namespace GameEntity
     internal sealed class EntityScheduler
     {
         private readonly EntityHierarchy _hierarchy;
-        private readonly Dictionary<int, SceneScheduleBucket> _sceneBuckets = new Dictionary<int, SceneScheduleBucket>();
+        private readonly Dictionary<long, SceneScheduleBucket> _sceneBuckets = new Dictionary<long, SceneScheduleBucket>();
         private IUpdateStrategy _updateStrategy;
 
         public EntityScheduler(EntityHierarchy hierarchy)
@@ -21,7 +21,7 @@ namespace GameEntity
 
         public void Register(Entity entity)
         {
-            if (entity == null || entity.IsDisposed || !_hierarchy.TryGetRecord(entity, out var record) || record.SceneNodeId == 0)
+            if (entity == null || entity.IsDestroyed || !_hierarchy.TryGetNode(entity, out var record) || record.SceneNodeId == 0)
             {
                 return;
             }
@@ -56,7 +56,7 @@ namespace GameEntity
             }
         }
 
-        public void MoveIfRegistered(EntityHandle handle, int oldSceneNodeId, int newSceneNodeId)
+        public void MoveIfRegistered(EntityHandle handle, long oldSceneNodeId, long newSceneNodeId)
         {
             if (!handle.IsValid || oldSceneNodeId == 0 || newSceneNodeId == 0 || oldSceneNodeId == newSceneNodeId)
             {
@@ -72,7 +72,7 @@ namespace GameEntity
             MoveIfRegistered(oldBucket, newBucket, handle);
         }
 
-        public void RemoveScene(int sceneNodeId)
+        public void RemoveScene(long sceneNodeId)
         {
             if (_sceneBuckets.TryGetValue(sceneNodeId, out var bucket))
             {
@@ -149,7 +149,7 @@ namespace GameEntity
 
         private bool EnsureHandleInCurrentScene(SceneScheduleBucket currentBucket, Entity entity)
         {
-            int currentSceneNodeId = _hierarchy.GetSceneNodeId(entity);
+            long currentSceneNodeId = _hierarchy.GetSceneNodeId(entity);
             if (currentSceneNodeId == currentBucket.SceneNodeId)
             {
                 return true;
@@ -174,7 +174,7 @@ namespace GameEntity
             return _updateStrategy;
         }
 
-        private SceneScheduleBucket GetOrCreateSceneBucket(int sceneNodeId)
+        private SceneScheduleBucket GetOrCreateSceneBucket(long sceneNodeId)
         {
             if (!_sceneBuckets.TryGetValue(sceneNodeId, out var bucket))
             {
@@ -185,9 +185,9 @@ namespace GameEntity
             return bucket;
         }
 
-        private IReadOnlyList<int> GetSceneNodeIdsSnapshot()
+        private IReadOnlyList<long> GetSceneNodeIdsSnapshot()
         {
-            return new List<int>(_sceneBuckets.Keys);
+            return new List<long>(_sceneBuckets.Keys);
         }
 
         private static void MoveIfRegistered(SceneScheduleBucket oldBucket, SceneScheduleBucket newBucket, EntityHandle handle)

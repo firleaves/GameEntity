@@ -28,7 +28,7 @@ V2 的讨论不应从“要不要保留树”出发，而应从“要保留哪�
 - **ownership tree**：`Entity` 通过 `Parent` 与 `_children` 构成拥有关系
 - **component attachment**：组件通过 `ComponentParent` 与 `_components` 挂到宿主
 - **scene rooting**：对象获得 `IScene` 后才完成 rooted、注册和激活
-- **cascade dispose**：父节点 `Dispose()` 会递归销毁 children 与 components
+- **cascade destroy**：父节点 `Destroy()` 会递归销毁 children 与 components
 
 这意味着当前模型的关键不是“树形展示”，而是：
 
@@ -113,7 +113,7 @@ var asc = Parent.Parent as AbilitySystemComponent;
 一旦某处缓存了一个裸 `Entity` 引用，而这个对象后续被销毁，就会出现典型问题：
 
 - 引用方不知道对象是否还活着
-- 调用前必须显式做 `IsDisposed` 判断
+- 调用前必须显式做 `IsDestroyed` 判断
 - 对象池复用后，旧引用容易变得危险
 
 当前仓库其实已经有一个正确方向： [dotnet/src/GameEntity/Core/EntityRef.cs](/Users/zhang/AIWork/GEGAS/dotnet/src/GameEntity/Core/EntityRef.cs:1)
@@ -137,7 +137,7 @@ V2 应该把这件事做得更明确。
 
 - 每个运行时对象有唯一 owner
 - owner rooted 后对象才真正激活
-- owner dispose 时进行级联销毁
+- owner destroy 时进行级联销毁
 
 因此，V2 并不一定要去掉内部 ownership tree。  
 真正可以调整的是：
@@ -252,7 +252,7 @@ V2 如果未来要做底层平铺、中心化索引、数据导向优化，这�
 
 - 创建即挂接
 - rooted 才激活
-- owner dispose = subtree dispose
+- owner destroy = subtree destroy
 - 组件与子节点的区别
 
 也就是说，底层可以演化，核心运行时契约不宜轻易破坏。
@@ -344,7 +344,7 @@ V2 最值得保留的，不是“树”这个形式本身，而是树背后的�
 
 - rooted 才激活
 - owner 决定生命周期
-- dispose 默认级联
+- destroy 默认级联
 - 默认不接受悬空对象
 
 V2 最需要改进的，也不是“树结构太多”，而是：

@@ -31,12 +31,12 @@ namespace GameEntity.Tests
         }
 
         [Fact]
-        public void DisposedEntity_ShouldNotRunFromSchedulerOldHandle()
+        public void DestroyedEntity_ShouldNotRunFromSchedulerOldHandle()
         {
-            TestScene scene = CreateScene("scheduler-dispose");
+            TestScene scene = CreateScene("scheduler-destroy");
             TickProbeEntity entity = scene.AddChild<TickProbeEntity>();
 
-            entity.Dispose();
+            entity.Destroy();
             World.Instance.Tick(0.1f, 0.1f);
 
             Assert.Equal(0, entity.UpdateCount);
@@ -68,7 +68,7 @@ namespace GameEntity.Tests
             World.Instance.RemoveScene("scheduler-remove-scene");
             World.Instance.Tick(0.1f, 0.1f);
 
-            Assert.True(entity.IsDisposed);
+            Assert.True(entity.IsDestroyed);
             Assert.Equal(0, entity.UpdateCount);
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }

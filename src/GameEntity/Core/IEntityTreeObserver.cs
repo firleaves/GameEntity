@@ -9,6 +9,6 @@ namespace GameEntity
 
         void OnEntityParentChanged(Entity entity, Entity oldParent, Entity newParent);
 
-        void OnEntityDisposed(Entity entity);
+        void OnEntityDestroyed(Entity entity);
     }
 }

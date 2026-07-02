@@ -13,7 +13,7 @@ namespace GameEntity
 
         public EntitySnapshot Capture()
         {
-            var nodes = _hierarchy.Nodes.GetAllRecords()
+            var nodes = _hierarchy.Nodes.GetAllNodes()
                 .OrderBy(record => record.NodeId)
                 .Select(CreateNodeInfo)
                 .ToList();
@@ -26,7 +26,6 @@ namespace GameEntity
             _hierarchy.Objects.TryGet(record.NodeId, out var entity);
             return new EntityNodeInfo(
                 record.NodeId,
-                record.Generation,
                 record.EntityId,
                 record.InstanceId,
                 record.SceneNodeId,
@@ -34,7 +33,7 @@ namespace GameEntity
                 record.ComponentTypeId,
                 record.Kind,
                 record.IsAlive,
-                record.IsDisposing,
+                record.IsDestroying,
                 entity?.GetType().FullName,
                 entity?.GetViewName());
         }

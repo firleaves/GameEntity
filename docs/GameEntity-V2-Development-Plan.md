@@ -16,17 +16,16 @@
 当前 `src/GameEntity` 已经不是纯 V1，已经具备 V2 第一阶段的雏形：
 
 - 已有 `EntityHierarchy` 作为统一运行时入口
-- 已有 `NodeStore`、`ObjectStore`、`ComponentIndexStore`、`SceneRegistry`
+- 已有 `NodeStore`、`ObjectStore`、`SceneRegistry`
 - `Entity` 已经不再保存 `_parent`、`_children`、`_components` 作为结构真相
 - `Parent`、`Children`、`Components` 已变成 façade 查询或兼容快照
 - 已有 `EntityNode`、`EntityHandle`、`EntityNodeKind`、`EntityNodeFlags`
+- `EntityHandle` 已收敛为 `long NodeId` 句柄，`NodeId` 由 `World.IdGenerator` 生成，销毁后不复用
 - 已有第一批语义查询 API
 - `EntityRef<T>` 已具备 `IsAlive`、`ValueOrNull`、`TryGet`
 
 但它还不是完整 V2：
 
-- `EntityHandle` 仍是 internal 句柄，没有形成公开引用模型
-- `Generation` 还没有真正参与节点槽位复用
 - `NodeStore` 仍使用多份字典索引，还不是文档中的统一节点表 + 链表关系形态
 - scheduler、scene bucket、snapshot、sync、diagnostics 还没有完整实现
 - `Entity` façade 仍承担较多生命周期逻辑
@@ -38,7 +37,7 @@
 ### 1. 先完成 C# 核心，再碰 Unity
 
 Unity 适配层依赖核心语义。  
-如果核心的 handle、dispose、scene 分区、owner 查询和事件模型还在变化，Unity 映射会反复返工。
+如果核心的 handle、destroy、scene 分区、owner 查询和事件模型还在变化，Unity 映射会反复返工。
 
 因此第一阶段只处理：
 
@@ -74,7 +73,7 @@ V2 不要求用户理解一棵可任意导航的业务树。
 - `AddChild<T>()`
 - `AddComponent<T>()`
 - `GetComponent<T>()`
-- `Dispose()`
+- `Destroy()`
 
 逐步弱化：
 
@@ -100,7 +99,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 单 owner
 - scene 分区
 - component 与 child 语义区分
-- dispose cascade
+- destroy cascade
 - 引用失效可判定
 - 结构快照不反向修改 hierarchy
 
@@ -120,7 +119,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 明确 `Entity` 是业务 façade
 - 明确 `NodeStore` 是 ownership、scene、component 关系来源
 - 明确 `ObjectStore` 只负责 handle 到对象实例解析
-- 明确 `ComponentIndexStore` 只负责 component 快速查询
+- 明确 component 快速查询由 `NodeStore` 统一负责
 - 明确 `SceneRegistry` 只负责 scene 名称与 scene root 节点映射
 - 明确 `World.AddScene` 是 scene root 唯一正式注册入口，`Scene` 构造不直接进入 hierarchy
 
@@ -141,7 +140,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 任务：
 
 - 补齐 `EntityNode` 中的结构字段，向草案靠拢
-- 明确 `NodeId`、`Generation`、`EntityId`、`InstanceId` 的职责
+- 明确 `NodeId`、`EntityId`、`InstanceId` 的职责
 - 决定是否从当前字典索引过渡到显式 sibling 链表结构
 - 补齐 scene root、child entity、component entity 的统一校验
 - 防止残留 cross-scene owning relation
@@ -169,8 +168,8 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 
 - 明确 `EntityHandle` 是否公开
 - 如果公开，设计只读、可比较、可序列化的 API
-- 实现基于 `NodeId + Generation` 的失效校验
-- 支持节点槽位复用时 generation 递增
+- 保持 `NodeId` 为 `long`，由 `World.IdGenerator` 生成，并在 World 生命周期内单调递增、不复用
+- 明确 handle 失效依赖 node 记录删除
 - 明确 `EntityRef<T>` 与 `EntityHandle` 的关系
 - 给长期引用制定推荐规则
 
@@ -196,14 +195,14 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 明确对象何时获得 `InstanceId`
 - 明确对象何时注册到 World scheduler
 - 明确 scene 传播只由 hierarchy 执行
-- 明确 dispose 流程只由 `EntityHierarchy.DestroySubtree` 驱动
+- 明确 destroy 流程只由 `EntityHierarchy.DestroySubtree` 驱动
 - 检查对象池复用时 hierarchy 状态是否完全重置
 
 验收标准：
 
 - 只有挂入 rooted owner 链后对象才激活
-- `Dispose(owner)` 必然级联销毁 children 和 components
-- 重复 dispose 安全
+- `Destroy(owner)` 必然级联销毁 children 和 components
+- 重复 destroy 安全
 - 销毁过程中不会重复触发 destroy
 - 对象池复用不会携带旧 handle、旧 scene、旧 owner
 
@@ -237,7 +236,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 明确 component 默认共享宿主业务身份的策略
 - 明确 child 默认生成独立业务身份的策略
 - 检查 `AddComponentWithId` 与 `AddChildWithId` 的语义一致性
-- 检查 component reattach、remove、dispose 的边界行为
+- 检查 component reattach、remove、destroy 的边界行为
 
 验收标准：
 
@@ -256,9 +255,9 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 覆盖 AddChild / AddComponent
 - 覆盖 reparent
 - 覆盖 remove child / remove component
-- 覆盖 dispose cascade
+- 覆盖 destroy cascade
 - 覆盖 EntityRef 失效
-- 覆盖 EntityHandle generation
+- 覆盖 EntityHandle 销毁后失效、NodeId 不复用
 - 覆盖 snapshot 不可反向修改
 - 覆盖 cross-scene owning 禁止
 - 覆盖循环 owner 禁止
@@ -319,9 +318,9 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 
 - `src/GameEntity` 内部结构真相统一在 `EntityHierarchy / NodeStore`
 - `Entity` 只作为 façade，不保存真实结构
-- ownership、component、scene 分区、dispose cascade 行为稳定
+- ownership、component、scene 分区、destroy cascade 行为稳定
 - `EntityRef<T>` 与 `EntityHandle` 边界清晰
-- `Generation` 可防止节点复用后的旧引用误解析
+- `EntityHandle` 销毁后不会误解析到新对象
 - 语义化查询覆盖主要业务场景
 - 纯 C# 测试覆盖核心生命周期契约
 - 基础 diagnostics 能导出 ownership 结构
@@ -369,7 +368,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 
 - hierarchy 创建 entity 后 Unity 自动生成 debug GO
 - owner 变化后 GO hierarchy 跟随更新
-- entity dispose 后 GO 正确释放
+- entity destroy 后 GO 正确释放
 - component 与 child 在 UI 上可区分
 - Unity 层级拖拽不会绕过 hierarchy 结构真相
 - Unity 测试覆盖基础生命周期和 hierarchy 投影
@@ -404,7 +403,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 
 1. 增加纯 C# 测试工程，先锁当前行为
 2. 补 cross-scene owning 和循环 owner 校验
-3. 完成 `EntityHandle` / `Generation` 的真实失效机制
+3. 完成 `EntityHandle` 的销毁失效机制
 4. 梳理 `EntityRef<T>` 与 `EntityHandle` 的公开边界
 5. 补 `Owner`、`GetSceneRoot`、`TryGet...` 系列语义查询
 6. 增加 diagnostics 的基础结构快照能力

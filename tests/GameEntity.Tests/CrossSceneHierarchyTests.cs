@@ -3,7 +3,7 @@ using Xunit;
 
 namespace GameEntity.Tests
 {
-    public sealed class CrossSceneGraphTests : GameEntityTestBase
+    public sealed class CrossSceneHierarchyTests : GameEntityTestBase
     {
         [Fact]
         public void CrossSceneReparent_ShouldMigrateEntireSubtreePartition()

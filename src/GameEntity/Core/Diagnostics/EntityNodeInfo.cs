@@ -6,21 +6,19 @@ namespace GameEntity
     public sealed class EntityNodeInfo
     {
         public EntityNodeInfo(
-            int nodeId,
-            int generation,
+            long nodeId,
             long entityId,
             long instanceId,
-            int sceneNodeId,
-            int ownerNodeId,
+            long sceneNodeId,
+            long ownerNodeId,
             long componentTypeId,
             EntityNodeKind kind,
             bool isAlive,
-            bool isDisposing,
+            bool isDestroying,
             string entityType,
             string viewName)
         {
             NodeId = nodeId;
-            Generation = generation;
             EntityId = entityId;
             InstanceId = instanceId;
             SceneNodeId = sceneNodeId;
@@ -28,22 +26,20 @@ namespace GameEntity
             ComponentTypeId = componentTypeId;
             Kind = kind;
             IsAlive = isAlive;
-            IsDisposing = isDisposing;
+            IsDestroying = isDestroying;
             EntityType = entityType;
             ViewName = viewName;
         }
 
-        public int NodeId { get; }
-
-        public int Generation { get; }
+        public long NodeId { get; }
 
         public long EntityId { get; }
 
         public long InstanceId { get; }
 
-        public int SceneNodeId { get; }
+        public long SceneNodeId { get; }
 
-        public int OwnerNodeId { get; }
+        public long OwnerNodeId { get; }
 
         public long ComponentTypeId { get; }
 
@@ -51,7 +47,7 @@ namespace GameEntity
 
         public bool IsAlive { get; }
 
-        public bool IsDisposing { get; }
+        public bool IsDestroying { get; }
 
         public string EntityType { get; }
 

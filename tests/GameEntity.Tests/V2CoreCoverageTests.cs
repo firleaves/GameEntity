@@ -15,12 +15,11 @@ namespace GameEntity.Tests
             EntityRef<PooledProbeEntity> oldRef = first;
             EntityHandle oldHandle = first.Handle;
 
-            first.Dispose();
+            first.Destroy();
             PooledProbeEntity second = scene.AddPooledChild<PooledProbeEntity>();
 
             Assert.Same(first, second);
-            Assert.Equal(oldHandle.NodeId, second.Handle.NodeId);
-            Assert.NotEqual(oldHandle.Generation, second.Handle.Generation);
+            Assert.NotEqual(oldHandle.NodeId, second.Handle.NodeId);
             Assert.False(oldRef.IsAlive);
             Assert.False(oldRef.TryGet(out _));
             Assert.False(World.Instance.TryResolve(oldHandle, out PooledProbeEntity _));
@@ -50,7 +49,7 @@ namespace GameEntity.Tests
             TestScene firstScene = CreateScene("p0-pool-world-a");
             PooledProbeEntity first = firstScene.AddPooledChild<PooledProbeEntity>();
 
-            first.Dispose();
+            first.Destroy();
             World.Instance.Dispose();
 
             var secondScene = (TestScene)World.Instance.AddScene("p0-pool-world-b", new TestScene("p0-pool-world-b"));
@@ -113,7 +112,7 @@ namespace GameEntity.Tests
         }
 
         [Fact]
-        public void RemoveChild_ShouldDisposeOnlyMatchingChildSubtree()
+        public void RemoveChild_ShouldDestroyOnlyMatchingChildSubtree()
         {
             TestScene scene = CreateScene("p0-remove-child");
             ProbeEntity keep = scene.AddChild<ProbeEntity>();
@@ -122,16 +121,16 @@ namespace GameEntity.Tests
 
             scene.RemoveChild(remove.Id);
 
-            Assert.False(keep.IsDisposed);
-            Assert.True(remove.IsDisposed);
-            Assert.True(component.IsDisposed);
+            Assert.False(keep.IsDestroyed);
+            Assert.True(remove.IsDestroyed);
+            Assert.True(component.IsDestroyed);
             Assert.True(scene.ContainsChild(keep.Id));
             Assert.False(scene.ContainsChild(remove.Id));
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void ClearChildren_ShouldDisposeAllChildrenAndKeepSceneValid()
+        public void ClearChildren_ShouldDestroyAllChildrenAndKeepSceneValid()
         {
             TestScene scene = CreateScene("p0-clear-children");
             ProbeEntity first = scene.AddChild<ProbeEntity>();
@@ -139,46 +138,47 @@ namespace GameEntity.Tests
 
             scene.ClearChildren();
 
-            Assert.True(first.IsDisposed);
-            Assert.True(second.IsDisposed);
+            Assert.True(first.IsDestroyed);
+            Assert.True(second.IsDestroyed);
             Assert.Equal(0, scene.ChildrenCount());
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void WorldDispose_ShouldDisposeScenesAndInvalidateHandles()
+        public void WorldDispose_ShouldDestroyScenesAndInvalidateHandles()
         {
-            TestScene scene = CreateScene("p0-world-dispose");
+            TestScene scene = CreateScene("p0-world-destroy");
             ProbeEntity entity = scene.AddChild<ProbeEntity>();
             EntityHandle handle = entity.Handle;
 
             World.Instance.Dispose();
 
-            Assert.True(scene.IsDisposed);
-            Assert.True(entity.IsDisposed);
+            Assert.True(scene.IsDestroyed);
+            Assert.True(entity.IsDestroyed);
             Assert.False(World.Instance.TryResolve(handle, out ProbeEntity _));
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void SceneDispose_ShouldDisposeSceneSubtreeAndRemoveGraphNodes()
+        public void SceneDestroy_ShouldDestroySceneSubtreeAndRemoveHierarchyNodes()
         {
-            TestScene scene = CreateScene("p0-scene-dispose");
+            TestScene scene = CreateScene("p0-scene-destroy");
             ProbeEntity entity = scene.AddChild<ProbeEntity>();
             EntityHandle sceneHandle = scene.Handle;
             EntityHandle entityHandle = entity.Handle;
 
-            scene.Dispose();
+            scene.Destroy();
 
-            Assert.True(scene.IsDisposed);
-            Assert.True(entity.IsDisposed);
+            Assert.True(scene.IsDestroyed);
+            Assert.True(entity.IsDestroyed);
+            Assert.Null(World.Instance.GetScene("p0-scene-destroy"));
             Assert.False(World.Instance.TryResolve(sceneHandle, out TestScene _));
             Assert.False(World.Instance.TryResolve(entityHandle, out ProbeEntity _));
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void ValidateEntities_ShouldReportObjectStoreMissingRecord()
+        public void ValidateEntities_ShouldReportObjectStoreMissingNode()
         {
             TestScene scene = CreateScene("p0-validation-negative");
             ProbeEntity entity = scene.AddChild<ProbeEntity>();
@@ -191,7 +191,7 @@ namespace GameEntity.Tests
             Assert.Contains(result.Issues, issue => issue.Code == "ObjectMissing" && issue.NodeId == entity.Handle.NodeId);
         }
 
-        private static void RemoveObjectStoreEntry(int nodeId)
+        private static void RemoveObjectStoreEntry(long nodeId)
         {
             object hierarchy = typeof(World)
                 .GetProperty("Hierarchy", BindingFlags.Instance | BindingFlags.NonPublic)

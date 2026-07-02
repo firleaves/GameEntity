@@ -15,24 +15,24 @@ namespace GameEntity
         public EntityValidationResult Validate()
         {
             var issues = new List<EntityValidationIssue>();
-            foreach (var record in _hierarchy.Nodes.GetAllRecords().OrderBy(r => r.NodeId))
+            foreach (var record in _hierarchy.Nodes.GetAllNodes().OrderBy(r => r.NodeId))
             {
-                ValidateRecord(record, issues);
+                ValidateNode(record, issues);
             }
 
             return new EntityValidationResult(issues);
         }
 
-        private void ValidateRecord(EntityNode record, List<EntityValidationIssue> issues)
+        private void ValidateNode(EntityNode record, List<EntityValidationIssue> issues)
         {
             if (!_hierarchy.Objects.TryGet(record.NodeId, out var entity))
             {
-                issues.Add(EntityValidationIssue.Error(record.NodeId, "ObjectMissing", "节点记录存在，但 ObjectStore 中没有对应 Entity。"));
+                issues.Add(EntityValidationIssue.Error(record.NodeId, "ObjectMissing", "节点存在，但 ObjectStore 中没有对应 Entity。"));
             }
 
             if (!_hierarchy.Nodes.IsAttachedToOwnerIndex(record))
             {
-                issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerIndexMissing", "节点记录没有出现在 owner 对应的 child/component 索引中。"));
+                issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerIndexMissing", "节点没有出现在 owner 对应的 child/component 索引中。"));
             }
 
             if (record.Kind == EntityNodeKind.SceneRoot)
@@ -56,9 +56,9 @@ namespace GameEntity
                 return;
             }
 
-            if (!_hierarchy.Nodes.TryGetRecord(record.OwnerNodeId, out var ownerRecord))
+            if (!_hierarchy.Nodes.TryGetNode(record.OwnerNodeId, out var ownerRecord))
             {
-                issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerRecordMissing", "节点指向的 owner 记录不存在。"));
+                issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerNodeMissing", "节点指向的 owner 节点不存在。"));
                 return;
             }
 
@@ -72,16 +72,16 @@ namespace GameEntity
                 issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerCycle", "owner 链中存在循环关系。"));
             }
 
-            if (entity != null && entity.IsDisposed)
+            if (entity != null && entity.IsDestroyed)
             {
-                issues.Add(EntityValidationIssue.Error(record.NodeId, "DisposedObjectStillIndexed", "已销毁 Entity 仍然保留在 EntityHierarchy 索引中。"));
+                issues.Add(EntityValidationIssue.Error(record.NodeId, "DestroyedObjectStillIndexed", "已销毁 Entity 仍然保留在 EntityHierarchy 索引中。"));
             }
         }
 
-        private bool OwnerChainContains(int startOwnerNodeId, int targetNodeId)
+        private bool OwnerChainContains(long startOwnerNodeId, long targetNodeId)
         {
-            var visited = new HashSet<int>();
-            int currentNodeId = startOwnerNodeId;
+            var visited = new HashSet<long>();
+            long currentNodeId = startOwnerNodeId;
             while (currentNodeId != 0)
             {
                 if (currentNodeId == targetNodeId)
@@ -89,7 +89,7 @@ namespace GameEntity
                     return true;
                 }
 
-                if (!visited.Add(currentNodeId) || !_hierarchy.Nodes.TryGetRecord(currentNodeId, out var currentRecord))
+                if (!visited.Add(currentNodeId) || !_hierarchy.Nodes.TryGetNode(currentNodeId, out var currentRecord))
                 {
                     return false;
                 }
