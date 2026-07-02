@@ -7,25 +7,25 @@ namespace GameEntity
     {
         private readonly Dictionary<ComponentKey, int> _components = new Dictionary<ComponentKey, int>();
 
-        public void Add(int ownerNodeId, long typeId, int componentNodeId)
+        public void Add(int ownerNodeId, long componentTypeId, int componentNodeId)
         {
-            var key = new ComponentKey(ownerNodeId, typeId);
+            var key = new ComponentKey(ownerNodeId, componentTypeId);
             if (_components.TryGetValue(key, out var existingNodeId) && existingNodeId != componentNodeId)
             {
-                throw new Exception($"entity already has component type id: {typeId}");
+                throw new Exception($"entity already has component type id: {componentTypeId}");
             }
 
             _components[key] = componentNodeId;
         }
 
-        public bool TryGet(int ownerNodeId, long typeId, out int componentNodeId)
+        public bool TryGet(int ownerNodeId, long componentTypeId, out int componentNodeId)
         {
-            return _components.TryGetValue(new ComponentKey(ownerNodeId, typeId), out componentNodeId);
+            return _components.TryGetValue(new ComponentKey(ownerNodeId, componentTypeId), out componentNodeId);
         }
 
-        public void Remove(int ownerNodeId, long typeId, int componentNodeId)
+        public void Remove(int ownerNodeId, long componentTypeId, int componentNodeId)
         {
-            var key = new ComponentKey(ownerNodeId, typeId);
+            var key = new ComponentKey(ownerNodeId, componentTypeId);
             if (_components.TryGetValue(key, out var currentNodeId) && currentNodeId == componentNodeId)
             {
                 _components.Remove(key);
@@ -40,17 +40,17 @@ namespace GameEntity
         private readonly struct ComponentKey : IEquatable<ComponentKey>
         {
             private readonly int _ownerNodeId;
-            private readonly long _typeId;
+            private readonly long _componentTypeId;
 
-            public ComponentKey(int ownerNodeId, long typeId)
+            public ComponentKey(int ownerNodeId, long componentTypeId)
             {
                 _ownerNodeId = ownerNodeId;
-                _typeId = typeId;
+                _componentTypeId = componentTypeId;
             }
 
             public bool Equals(ComponentKey other)
             {
-                return _ownerNodeId == other._ownerNodeId && _typeId == other._typeId;
+                return _ownerNodeId == other._ownerNodeId && _componentTypeId == other._componentTypeId;
             }
 
             public override bool Equals(object obj)
@@ -62,7 +62,7 @@ namespace GameEntity
             {
                 unchecked
                 {
-                    return (_ownerNodeId * 397) ^ _typeId.GetHashCode();
+                    return (_ownerNodeId * 397) ^ _componentTypeId.GetHashCode();
                 }
             }
         }

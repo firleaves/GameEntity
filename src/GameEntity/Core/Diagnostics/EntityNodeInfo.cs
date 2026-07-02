@@ -8,12 +8,12 @@ namespace GameEntity
         public EntityNodeInfo(
             int nodeId,
             int generation,
-            long businessId,
+            long entityId,
             long instanceId,
             int sceneNodeId,
             int ownerNodeId,
-            long typeId,
-            NodeKind kind,
+            long componentTypeId,
+            EntityNodeKind kind,
             bool isAlive,
             bool isDisposing,
             string entityType,
@@ -21,11 +21,11 @@ namespace GameEntity
         {
             NodeId = nodeId;
             Generation = generation;
-            BusinessId = businessId;
+            EntityId = entityId;
             InstanceId = instanceId;
             SceneNodeId = sceneNodeId;
             OwnerNodeId = ownerNodeId;
-            TypeId = typeId;
+            ComponentTypeId = componentTypeId;
             Kind = kind;
             IsAlive = isAlive;
             IsDisposing = isDisposing;
@@ -37,7 +37,7 @@ namespace GameEntity
 
         public int Generation { get; }
 
-        public long BusinessId { get; }
+        public long EntityId { get; }
 
         public long InstanceId { get; }
 
@@ -45,9 +45,9 @@ namespace GameEntity
 
         public int OwnerNodeId { get; }
 
-        public long TypeId { get; }
+        public long ComponentTypeId { get; }
 
-        public NodeKind Kind { get; }
+        public EntityNodeKind Kind { get; }
 
         public bool IsAlive { get; }
 

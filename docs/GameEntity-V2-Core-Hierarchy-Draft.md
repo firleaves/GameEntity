@@ -170,7 +170,7 @@ GameEntity V2
 - `IsAlive(EntityHierarchy hierarchy)`
 - `TryResolve<T>(EntityHierarchy hierarchy, out T entity)`
 
-### NodeKind
+### EntityNodeKind
 
 V2 不建议把当前所有节点粗暴并成一种语义。  
 建议显式保留：
@@ -181,27 +181,27 @@ V2 不建议把当前所有节点粗暴并成一种语义。
 
 这与当前 V1 的 `Parent` / `ComponentParent` 双语义一致。
 
-### BusinessId
+### EntityId
 
-`BusinessId` 对应当前 `Entity.Id` 的业务身份。
+`EntityId` 对应当前 `Entity.Id` 的业务身份。
 
 建议语义：
 
-- 子实体通常有独立 `BusinessId`
-- 组件可以继续共享宿主 `BusinessId`
+- 子实体通常有独立 `EntityId`
+- 组件可以继续共享宿主 `EntityId`
 
 这可以保留当前 API 和业务语义上的直觉一致性。
 
-## NodeRecord 设计
+## EntityNode 设计
 
 `NodeStore` 中每个节点建议至少保存以下字段：
 
 ```csharp
-internal struct NodeRecord
+internal struct EntityNode
 {
     public int NodeId;
     public int Generation;
-    public long BusinessId;
+    public long EntityId;
     public long InstanceId;
 
     public int SceneNodeId;
@@ -211,9 +211,9 @@ internal struct NodeRecord
     public int FirstComponentNodeId;
     public int NextComponentSiblingNodeId;
 
-    public int TypeId;
-    public NodeKind Kind;
-    public NodeFlags Flags;
+    public int ComponentTypeId;
+    public EntityNodeKind Kind;
+    public EntityNodeFlags Flags;
 
     public int ObjectSlot;
 }

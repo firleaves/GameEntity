@@ -1,6 +1,6 @@
 namespace GameEntity
 {
-    public enum NodeKind
+    public enum EntityNodeKind
     {
         SceneRoot = 0,
         ChildEntity = 1,

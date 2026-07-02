@@ -55,9 +55,9 @@ namespace GameEntity.CoreTestApp
 
             EntitySnapshot snapshot = World.Instance.CaptureEntitySnapshot();
             Expect(snapshot.Nodes.Count == 4, "初始场景应该包含 scene、actor、abilitySystem、effect 四个 hierarchy 节点。");
-            Expect(snapshot.Nodes.Count(node => node.Kind == NodeKind.SceneRoot) == 1, "应该只有一个 SceneRoot 节点。");
-            Expect(snapshot.Nodes.Count(node => node.Kind == NodeKind.ChildEntity) == 2, "actor 和 effect 应该是 ChildEntity。");
-            Expect(snapshot.Nodes.Count(node => node.Kind == NodeKind.ComponentEntity) == 1, "abilitySystem 应该是 ComponentEntity。");
+            Expect(snapshot.Nodes.Count(node => node.Kind == EntityNodeKind.SceneRoot) == 1, "应该只有一个 SceneRoot 节点。");
+            Expect(snapshot.Nodes.Count(node => node.Kind == EntityNodeKind.ChildEntity) == 2, "actor 和 effect 应该是 ChildEntity。");
+            Expect(snapshot.Nodes.Count(node => node.Kind == EntityNodeKind.ComponentEntity) == 1, "abilitySystem 应该是 ComponentEntity。");
             Expect(World.Instance.ValidateEntities().IsValid, "初始 hierarchy 结构必须有效。");
 
             RunFrames(5);

@@ -3,7 +3,7 @@ using System;
 namespace GameEntity
 {
     [Flags]
-    internal enum NodeFlags
+    internal enum EntityNodeFlags
     {
         None = 0,
         Alive = 1,

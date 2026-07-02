@@ -21,17 +21,17 @@ namespace GameEntity
             return new EntitySnapshot(nodes);
         }
 
-        private EntityNodeInfo CreateNodeInfo(NodeRecord record)
+        private EntityNodeInfo CreateNodeInfo(EntityNode record)
         {
             _hierarchy.Objects.TryGet(record.NodeId, out var entity);
             return new EntityNodeInfo(
                 record.NodeId,
                 record.Generation,
-                record.BusinessId,
+                record.EntityId,
                 record.InstanceId,
                 record.SceneNodeId,
                 record.OwnerNodeId,
-                record.TypeId,
+                record.ComponentTypeId,
                 record.Kind,
                 record.IsAlive,
                 record.IsDisposing,

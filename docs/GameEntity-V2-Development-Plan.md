@@ -19,7 +19,7 @@
 - 已有 `NodeStore`、`ObjectStore`、`ComponentIndexStore`、`SceneRegistry`
 - `Entity` 已经不再保存 `_parent`、`_children`、`_components` 作为结构真相
 - `Parent`、`Children`、`Components` 已变成 façade 查询或兼容快照
-- 已有 `NodeRecord`、`EntityHandle`、`NodeKind`、`NodeFlags`
+- 已有 `EntityNode`、`EntityHandle`、`EntityNodeKind`、`EntityNodeFlags`
 - 已有第一批语义查询 API
 - `EntityRef<T>` 已具备 `IsAlive`、`ValueOrNull`、`TryGet`
 
@@ -136,12 +136,12 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - `Entity` 不重新引入 `_parent`、`_children`、`_components`
 - 所有结构变更都经过 `EntityHierarchy`
 
-### 1.2 完善 NodeStore 与 NodeRecord
+### 1.2 完善 NodeStore 与 EntityNode
 
 任务：
 
-- 补齐 `NodeRecord` 中的结构字段，向草案靠拢
-- 明确 `NodeId`、`Generation`、`BusinessId`、`InstanceId` 的职责
+- 补齐 `EntityNode` 中的结构字段，向草案靠拢
+- 明确 `NodeId`、`Generation`、`EntityId`、`InstanceId` 的职责
 - 决定是否从当前字典索引过渡到显式 sibling 链表结构
 - 补齐 scene root、child entity、component entity 的统一校验
 - 防止残留 cross-scene owning relation
@@ -245,7 +245,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - child 按 business id 唯一
 - component 从 owner 移除时只销毁 component subtree
 - owner 销毁时 component 和 child 都被销毁
-- component 与 child 在 hierarchy 记录中 `NodeKind` 清晰区分
+- component 与 child 在 hierarchy 记录中 `EntityNodeKind` 清晰区分
 
 ### 1.7 补齐核心测试
 

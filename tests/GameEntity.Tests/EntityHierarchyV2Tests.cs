@@ -56,9 +56,9 @@ namespace GameEntity.Tests
 
             EntitySnapshot snapshot = World.Instance.CaptureEntitySnapshot();
             Assert.Equal(3, snapshot.Nodes.Count);
-            Assert.Contains(snapshot.Nodes, node => node.Kind == NodeKind.SceneRoot && node.NodeId == node.SceneNodeId);
-            Assert.Contains(snapshot.Nodes, node => node.Kind == NodeKind.ChildEntity && node.BusinessId == entity.Id);
-            Assert.Contains(snapshot.Nodes, node => node.Kind == NodeKind.ComponentEntity && node.BusinessId == component.Id);
+            Assert.Contains(snapshot.Nodes, node => node.Kind == EntityNodeKind.SceneRoot && node.NodeId == node.SceneNodeId);
+            Assert.Contains(snapshot.Nodes, node => node.Kind == EntityNodeKind.ChildEntity && node.EntityId == entity.Id);
+            Assert.Contains(snapshot.Nodes, node => node.Kind == EntityNodeKind.ComponentEntity && node.EntityId == component.Id);
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
@@ -181,8 +181,8 @@ namespace GameEntity.Tests
             Assert.Same(sceneB, component.GetSceneRoot());
 
             EntitySnapshot snapshot = World.Instance.CaptureEntitySnapshot();
-            EntityNodeInfo entityNode = snapshot.Nodes.Single(node => node.BusinessId == entity.Id);
-            EntityNodeInfo childNode = snapshot.Nodes.Single(node => node.Kind == NodeKind.ChildEntity && node.BusinessId == child.Id);
+            EntityNodeInfo entityNode = snapshot.Nodes.Single(node => node.EntityId == entity.Id);
+            EntityNodeInfo childNode = snapshot.Nodes.Single(node => node.Kind == EntityNodeKind.ChildEntity && node.EntityId == child.Id);
             EntityNodeInfo componentNode = snapshot.Nodes.Single(node => node.NodeId == component.Handle.NodeId);
 
             Assert.Equal(entityNode.SceneNodeId, childNode.SceneNodeId);

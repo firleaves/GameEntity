@@ -23,7 +23,7 @@ namespace GameEntity
             return new EntityValidationResult(issues);
         }
 
-        private void ValidateRecord(NodeRecord record, List<EntityValidationIssue> issues)
+        private void ValidateRecord(EntityNode record, List<EntityValidationIssue> issues)
         {
             if (!_hierarchy.Objects.TryGet(record.NodeId, out var entity))
             {
@@ -35,7 +35,7 @@ namespace GameEntity
                 issues.Add(EntityValidationIssue.Error(record.NodeId, "OwnerIndexMissing", "节点记录没有出现在 owner 对应的 child/component 索引中。"));
             }
 
-            if (record.Kind == NodeKind.SceneRoot)
+            if (record.Kind == EntityNodeKind.SceneRoot)
             {
                 if (record.OwnerNodeId != 0)
                 {
