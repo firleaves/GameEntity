@@ -1,0 +1,16 @@
+{
+  "name": "GameEntity.Unity.GameEntityDemo",
+  "rootNamespace": "GameEntity.Unity.Demo",
+  "references": [
+    "GameEntity.Unity"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

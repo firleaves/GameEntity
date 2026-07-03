@@ -30,7 +30,7 @@
 - scheduler、scene bucket、snapshot、sync、diagnostics 还没有完整实现
 - `Entity` façade 仍承担较多生命周期逻辑
 - Unity 新适配包当前还需要同步到最新 C# 核心
-- 旧 `Assets/GameEntity` 仍是 V1 实现
+- 旧 `unity/Assets/GameEntity` 仍是 V1 实现
 
 ## 总体原则
 
@@ -48,7 +48,7 @@ Unity 适配层依赖核心语义。
 
 暂不迁移：
 
-- `Assets/GameEntity`
+- `unity/Assets/GameEntity`
 - `unity/GameEntity.Unity`
 - Unity Inspector
 - Unity Hierarchy 映射
@@ -338,7 +338,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 - 确认 `netstandard2.1` 产物用于 Unity
 - 增加构建脚本或发布脚本
 - 防止 Unity 包继续引用旧 DLL
-- 清理或标记旧 `Assets/GameEntity` 的 V1 状态
+- 清理或标记旧 `unity/Assets/GameEntity` 的 V1 状态
 - 更新 README 中的包使用方式
 
 验收标准：
@@ -415,7 +415,7 @@ V2 第一阶段的重点不是立即追求极限性能，而是先锁定运行�
 
 - Unity Inspector 视觉改造
 - Unity Hierarchy 分组展示
-- 旧 `Assets/GameEntity` 包迁移
+- 旧 `unity/Assets/GameEntity` 包迁移
 - scheduler 大重构
 - packed data
 - 网络同步

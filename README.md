@@ -5,7 +5,7 @@ GameEntity is a lightweight, engine-agnostic entity and lifecycle framework for 
 The repository contains two package surfaces:
 
 - `GameEntity`: the pure C# core library.
-- `GameEntity.Unity`: the optional Unity integration package.
+- `GameEntity for Unity`: the optional Unity integration package.
 
 The core package does not depend on Unity. The Unity package adapts the core hierarchy to Unity lifecycle, logging, component views, and editor inspection.
 
@@ -27,7 +27,9 @@ apps/
                             Core hierarchy smoke test console app
 
 unity/
-  GameEntity.Unity/        Unity Package Manager package
+  Packages/
+    com.firleaves.gameentity.unity/
+                          Unity Package Manager package
 
 docs/                      Project documentation
 tools/                     Build and maintenance scripts
@@ -61,30 +63,30 @@ Build it with:
 dotnet build "src/GameEntity/GameEntity.csproj"
 ```
 
-## Unity Package
+## GameEntity for Unity
 
 The Unity integration package lives in:
 
 ```text
-unity/GameEntity.Unity
+unity/Packages/com.firleaves.gameentity.unity
 ```
 
 Install it in Unity Package Manager with:
 
 ```text
-https://github.com/firleaves/GameEntity.git?path=unity/GameEntity.Unity
+https://github.com/firleaves/GameEntity.git?path=unity/Packages/com.firleaves.gameentity.unity
 ```
 
 Or pin a version:
 
 ```text
-https://github.com/firleaves/GameEntity.git?path=unity/GameEntity.Unity#v0.1.0
+https://github.com/firleaves/GameEntity.git?path=unity/Packages/com.firleaves.gameentity.unity#v0.1.0
 ```
 
 The Unity package includes a prebuilt `GameEntity.dll` under:
 
 ```text
-unity/GameEntity.Unity/Runtime/Plugins/GameEntity.dll
+unity/Packages/com.firleaves.gameentity.unity/Runtime/Plugins/GameEntity.dll
 ```
 
 That DLL is built from the pure C# core in `src/GameEntity`.
