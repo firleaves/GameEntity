@@ -86,3 +86,7 @@ crashlytics-build.properties
 
 # Unity crash reports
 mono_crash.*.json
+
+# Local agent state and unpublished design notes
+.serena/
+/docs/

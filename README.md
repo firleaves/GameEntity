@@ -31,7 +31,6 @@ unity/
     com.firleaves.gameentity.unity/
                           Unity Package Manager package
 
-docs/                      Project documentation
 tools/                     Build and maintenance scripts
 ```
 
@@ -77,11 +76,7 @@ Install it in Unity Package Manager with:
 https://github.com/firleaves/GameEntity.git?path=unity/Packages/com.firleaves.gameentity.unity
 ```
 
-Or pin a version:
-
-```text
-https://github.com/firleaves/GameEntity.git?path=unity/Packages/com.firleaves.gameentity.unity#v0.1.0
-```
+`v0` is the legacy baseline before the current Unity Package Manager layout. Use current `main` or a later release tag for the UPM package path above.
 
 The Unity package includes a prebuilt `GameEntity.dll` under:
 

@@ -1,301 +1,571 @@
-# GameEntity使用指南
+# GameEntity 使用指南
+
+GameEntity 是一个纯 C# 的 Entity + 生命周期框架。核心库不依赖 Unity，Unity 侧只作为适配层：负责驱动 `World.Tick`、接管日志，并把 Entity 树投影成 GameObject，方便在 Unity Hierarchy 和 Inspector 里查看运行时数据。
 
 ## 目录
-1. [框架概述](#框架概述)
-2. [核心特性](#核心特性)
-3. [系统详解](#系统详解)
-4. [推荐实践](#推荐实践)
 
-## 框架概述
+1. [安装和工程结构](#安装和工程结构)
+2. [核心概念](#核心概念)
+3. [基础用法](#基础用法)
+4. [EntityHandle 和 EntityRef](#entityhandle-和-entityref)
+5. [生命周期和更新](#生命周期和更新)
+6. [组件依赖](#组件依赖)
+7. [对象池](#对象池)
+8. [诊断和日志](#诊断和日志)
+9. [Unity 用法](#unity-用法)
+10. [推荐实践](#推荐实践)
 
-GameEntity (GE) 是一个实体组件系统(ECS)框架。它提供了一套完整的游戏对象管理解决方案，包括实体管理、层级（子节点），组件系统、依赖组件、异步处理、对象池化，生命周期（Awake/Update/Destroy）等核心功能。
+## 安装和工程结构
 
-## 核心特性
-- **场景树结构**: 基于场景树结构管理节点组件，子节点，完整生命周期管理
-- **实体-组件系统**: 灵活的ECS架构，支持动态组件管理
-- **生命周期管理**： 挂在场景树节点下面有完整的生命周期管理控制
-- **自定义更新策略**: 可定制的实体更新机制，比如每秒固定帧数，超出相机范围停止更新等等
-- **高性能对象池**: 线程安全的无锁对象池实现
-- **组件依赖管理**: 自动化的组件依赖管理
-- **异步实体加载**: 基于UniTask的异步实体加载
+核心库位置：
 
-
-### 调试
-- **Unity深度集成**: 每个Entity自动创建GameObject，Inspector界面显示Entity内部数据 
-
-
-## 系统详解
-
-### 0.启动与基础概念
-- 启动：`World.Instance` 是唯一默认全局入口。`World` 构造时会初始化时间、ID、对象池、生命周期、依赖和 hierarchy 服务。
-- 实体可视：每个 `Entity` 会生成一个 `ViewGO` 并挂载 `ComponentView`，层级与父子关系同步，便于在 Inspector 查看。
-- 生命周期：由宿主在主循环中调用 `World.Instance.Tick(deltaTime, unscaledDeltaTime)` 驱动。
-
-### 1. World - 全局世界容器
-
-World 是整个框架的核心容器，管理场景、EntityHierarchy 和核心服务。
-
-```csharp
-// 获取 World 默认实例
-World world = World.Instance;
-
-// 场景管理
-Scene scene = new MyScene("MainScene");
-world.AddScene("MainScene", scene);
-
-// 帧驱动
-world.Tick(deltaTime, unscaledDeltaTime);
+```text
+src/GameEntity
 ```
 
-### 2.Scene - 场景树
+目标框架：
 
-- 新增业务场景：继承 `GE.Scene`，在构造函数指定名称
-- 添加 `World.Instance.AddScene(name, scene)` 注册。
-- `Scene` 构造函数只初始化场景身份；只有调用 `World.Instance.AddScene` 后，scene root 才会正式进入 hierarchy，才允许继续 `AddChild` / `AddComponent`。
-- 获取场景 World.Instance.GetScene(name)
-- 移除场景 World.Instance.RemoveScene(name)
-
-注意：Scene 不支持 ILifecycle（IAwake，IUpdate，IDestroy）里面生命周期接口继承使用
-```csharp
-public class MainScene : GE.Scene 
-{ 
-    public MainScene(): base("Main") 
-    {
-    } 
-    public override void Awake() 
-    { 
-    } 
-}
-
-World.Instance.AddScene("Main", new MainScene());
-World.Instance.GetScene("Main");
-World.Instance.RemoveScene("Main");
-```
-### 3.Entity- 实体基类,子节点与组件
-
-Entity是所有游戏对象的基类，支持父子关系和组件管理。
-- Entity的创建都是基于其他Entity去创建它，比如 Scene创建第一个节点 ，其他Entity对象创建
-- InstanceId 代表Entity的唯一ID，由IdGenerator生成，用来对比entity是否是一个，可以参考EntityRef实现
-- Id，可以由IdGenerator，也可以外部传入，是属于业务Id,`AddComponentWithId`和`AddChildWithId`就可以传入业务Id
-- 子节点：`AddChild<T,T1...>(...)`,如果Entity实现了IAwake，会调用Awake函数，Entity实现IUpdate，会加入Update系统里面，进行更新，同一个Parent下面支持多个Child Entity。
-- 组件：同实体同类型仅一个。常用：`AddComponent<T>(...)`、`GetComponent<T>()`、`RemoveComponent<T>()`。
-```csharp
-public class MainScene : GE.Scene 
-{ 
-    public MainScene(): base("Main") 
-    {
-
-        
-    } 
-    public override void Awake() 
-    { 
-        AddComponent<ComponentA>();
-        var b = AddComponent<ComponentB>();
-
-        var c = b.AddChild<ComponentC>();
-        c.AddComponent<ComponentD>();
-    } 
-}
-
-
-//其他地方创建一个child挂在场景下面的一个子节点，
-var scene = World.Instance.GetScene("Main") as MainScene;
-scene.AddChild<ComponentC>();
-
+```text
+net8.0
+netstandard2.1
 ```
 
+Unity 包位置：
 
-### 4.生命周期和接口
+```text
+unity/Packages/com.firleaves.gameentity.unity
+```
 
-实体只要挂在场景树下面，都可以自动管理生命周期，不必担心悬空对象无法释放问题,如果
+Unity Package Manager Git 地址：
 
+```text
+https://github.com/firleaves/GameEntity.git?path=unity/Packages/com.firleaves.gameentity.unity
+```
 
-ILifecycle下面定义了生命周期接口
+注意：`v0` 是旧 main 基线，保留的是迁移到当前 core hierarchy + Unity UPM 结构之前的仓库状态；新 Unity 包应使用当前 main 或后续正式版本 tag。
 
-- IAwake ： 支持多个泛型类型
-- IUpdate ： `void Update(float time);`参数为时间差,unity环境下面为unscaledDeltaTime
-- IDestroy ： Entity销毁的时候会触发，用来清理entity内部数据
+## 核心概念
+
+- `World`：运行时世界，持有场景、层级、生命周期、调度、依赖、对象池等服务。
+- `Scene`：场景根节点。只有注册进 `World` 后，才算正式进入 Entity 树。
+- `Entity`：所有业务对象和组件的基类。
+- Child Entity：通过 `AddChild` 挂到某个 Entity 下，表达对象树关系。
+- Component Entity：通过 `AddComponent` 挂到某个 Entity 上，表达组合能力。
+- `EntityHandle`：运行时节点句柄，用于安全解析 Entity。
+- Unity GameObject：只做可视化投影，不是业务数据源。
+
+当前层级关系统一由 core 内部的 `EntityHierarchy` 管理。业务侧不要直接修改 Unity GameObject 父子关系来改变 Entity 关系，应使用 `AddChild`、`AddComponent`、`ReparentTo`、`Destroy` 等 core API。
+
+## 基础用法
+
+### 1. 创建并注册 Scene
 
 ```csharp
-public class MyComponent : Entity, IAwake, IAwake<int>, IUpdate, IDestroy
+using GameEntity;
+
+public sealed class BattleScene : Scene
 {
-    public void Awake()
+    public BattleScene(string name) : base(name)
     {
-        // 无参数初始化
     }
 
-    public void Awake(int parameter)
+    public override void Awake()
     {
+        // Scene 被 World.AddScene 注册后会调用 Awake。
+    }
+}
+
+Scene scene = World.Instance.AddScene("Battle", new BattleScene("Battle"));
+```
+
+`Scene` 构造后还不能挂载子节点。必须先调用：
+
+```csharp
+World.Instance.AddScene("Battle", scene);
+```
+
+再调用：
+
+```csharp
+scene.AddChild<UnitEntity, string>("Player");
+```
+
+如果 `scene.Name` 和 `AddScene` 传入的 key 不一致，会抛出异常。
+
+### 2. 创建 Child Entity
+
+```csharp
+public sealed class UnitEntity : Entity, IAwake<string>, IUpdate, IDestroy
+{
+    public string Name { get; private set; }
+    public int UpdateCount { get; private set; }
+
+    public void Awake(string name)
+    {
+        Name = name;
     }
 
     public void Update(float deltaTime)
     {
+        UpdateCount++;
     }
 
     public void OnDestroy()
     {
-        // 销毁时清理
+        // 清理业务资源。
     }
+}
+
+var scene = World.Instance.GetScene("Battle");
+var player = scene.AddChild<UnitEntity, string>("Player");
+var monster = scene.AddChild<UnitEntity, string>("Monster");
+```
+
+`AddChild` 支持 0 到 4 个 Awake 参数：
+
+```csharp
+entity.AddChild<MyEntity>();
+entity.AddChild<MyEntity, int>(100);
+entity.AddChild<MyEntity, int, string>(100, "name");
+```
+
+需要指定业务 id 时使用：
+
+```csharp
+var unit = scene.AddChildWithId<UnitEntity, string>(10001, "Player");
+```
+
+### 3. 添加 Component Entity
+
+```csharp
+public sealed class StatsComponent : Entity, IAwake<int, float>
+{
+    public int Health { get; private set; }
+    public float Energy { get; private set; }
+
+    public void Awake(int health, float energy)
+    {
+        Health = health;
+        Energy = energy;
+    }
+}
+
+StatsComponent stats = player.AddComponent<StatsComponent, int, float>(100, 50f);
+```
+
+同一个 owner 上，同类型 component 只能有一个。重复添加会抛出异常。
+
+查询组件：
+
+```csharp
+StatsComponent stats = player.GetComponent<StatsComponent>();
+
+if (player.TryGetComponent<StatsComponent>(out var currentStats))
+{
+    // 使用 currentStats。
 }
 ```
 
-#### 自定义更新策略
-实现 `IHasUpdateStrategy` 返回自定义 `IUpdateStrategy` 可改变调用频率；也可组合 `AllStrategy/AnyStrategy`。
-
-- IUpdateStrategy: 用来告诉 World scheduler 触发多少次 Entity 的 Update
-- IHasUpdateStrategy：在Entity实现这个接口，改变更新频率
-- AllStrategy/AnyStrategy： 组合多种更新策略
-
+移除组件：
 
 ```csharp
+player.RemoveComponent<StatsComponent>();
+```
 
-public class FixedRateStrategy : IUpdateStrategy 
+### 4. 查询父子和 Scene
+
+```csharp
+Entity parent = player.Parent;
+Scene root = player.GetSceneRoot();
+
+int childCount = scene.ChildrenCount();
+int componentCount = player.ComponentsCount();
+
+foreach (Entity child in scene.Children)
 {
-    public FixedRateStrategy(float updatesPerSecond,bool useUnscaledTime = false){}
-    public int GetUpdateCount(Entity entity, float deltaTime,float unscaledDeltaTime, out float singleDeltaTime){}
+    // Children 是只读快照。
 }
 
-public class InCamreraStrategy : IUpdateStrategy 
+foreach (Entity component in player.Components)
 {
-    public InCamreraStrategy(int inCameraCount,int outCameraCount){}
+    // Components 是只读快照。
+}
+```
 
-    public int GetUpdateCount(Entity entity, float deltaTime,float unscaledDeltaTime, out float singleDeltaTime){}
+按业务 id 查询 child：
+
+```csharp
+UnitEntity unit = scene.GetChild<UnitEntity>(10001);
+
+if (scene.TryGetChild<UnitEntity>(10001, out var found))
+{
+    // 使用 found。
+}
+```
+
+### 5. 重新挂接 Entity
+
+```csharp
+monster.ReparentTo(player);
+```
+
+`ReparentTo` 会移动整棵子树。如果跨 Scene 移动，core 会同步迁移子树内所有节点的 Scene 分区和更新调度归属。
+
+不要通过 Unity Hierarchy 拖动 GameObject 来改变 Entity 父子关系。Unity 里的 GameObject 是调试视图，Entity 的真实关系以 core 层级为准。
+
+### 6. 销毁
+
+```csharp
+monster.Destroy();
+World.Instance.RemoveScene("Battle");
+World.Instance.Dispose();
+```
+
+`Destroy()` 会销毁整棵子树，包括 child 和 component，并触发 `IDestroy.OnDestroy()`。
+
+## EntityHandle 和 EntityRef
+
+`EntityHandle` 是运行时节点 id：
+
+```csharp
+EntityHandle handle = player.Handle;
+```
+
+它适合做短期运行时定位，不适合作为存档 id。销毁后的 handle 不会解析到新对象：
+
+```csharp
+if (World.Instance.TryResolve<UnitEntity>(handle, out var resolved))
+{
+    // resolved 仍然存活。
+}
+```
+
+`EntityRef<T>` 是更适合业务侧保存引用的轻量包装。它同时校验 `InstanceId` 和 `EntityHandle`，可以避免对象池复用导致旧引用误指向新对象：
+
+```csharp
+EntityRef<UnitEntity> target = player;
+
+if (target.TryGet(out var aliveTarget))
+{
+    aliveTarget.Destroy();
+}
+```
+
+常用属性：
+
+```csharp
+bool alive = target.IsAlive;
+UnitEntity value = target.ValueOrNull;
+EntityHandle handle = target.Handle;
+```
+
+## 生命周期和更新
+
+生命周期接口：
+
+```csharp
+public interface IAwake
+{
+    void Awake();
 }
 
-public class MyEntity : Entity, IUpdate, IHasUpdateStrategy
+public interface IAwake<T>
 {
-    private IUpdateStrategy _strategy;
+    void Awake(T p1);
+}
+
+public interface IUpdate
+{
+    void Update(float time);
+}
+
+public interface IDestroy
+{
+    void OnDestroy();
+}
+```
+
+`IAwake` 支持 0 到 4 个参数。Entity 被 `AddChild` 或 `AddComponent` 挂到树上后，框架会调用对应的 `Awake`。
+
+宿主需要每帧驱动：
+
+```csharp
+World.Instance.Tick(deltaTime, unscaledDeltaTime);
+```
+
+Unity 项目中由 `GameEntityRunner` 自动调用，不需要业务脚本手动 Tick。
+
+### 自定义更新策略
+
+实现 `IHasUpdateStrategy` 可以控制 Update 次数：
+
+```csharp
+public sealed class EveryHalfSecondStrategy : IUpdateStrategy
+{
+    private float _elapsed;
+
+    public int GetUpdateCount(Entity entity, float deltaTime, float unscaledDeltaTime, out float singleDeltaTime)
+    {
+        _elapsed += deltaTime;
+        if (_elapsed < 0.5f)
+        {
+            singleDeltaTime = deltaTime;
+            return 0;
+        }
+
+        _elapsed = 0f;
+        singleDeltaTime = 0.5f;
+        return 1;
+    }
+}
+
+public sealed class SlowEntity : Entity, IAwake, IUpdate, IHasUpdateStrategy
+{
+    private readonly IUpdateStrategy _strategy = new EveryHalfSecondStrategy();
 
     public void Awake()
     {
-        // 所有子策略都满足时才更新，取最小更新次数
-        // 相机范围内，每秒30次
-        // 相机范围外，每秒5次
-        _strategy = new AllStrategy(
-            new FixedRateStrategy(30), // 每秒固定30次
-            new InCamreraStrategy(60，5)     // 在相机范围内才能每秒60次，不在相机范围内每秒5s
-        );
     }
 
-    public IUpdateStrategy GetUpdateStrategy() => _strategy;
-
-    public void Update(float deltaTime)
+    public IUpdateStrategy GetUpdateStrategy()
     {
-        // 更新逻辑
+        return _strategy;
+    }
+
+    public void Update(float time)
+    {
     }
 }
 ```
 
-### 5.依赖组件管理
-- 标注依赖：在组件类上添加 `[DependsOn(typeof(Foo), typeof(Bar))]`，或实现 `IDependentComponent.GetDependencyTypes()`。或者 继承 DependentComponentBase
-- 依赖组件条件满足，OnDependencyStatusChanged会被调用，AreAllDependenciesMet变量也会改变
-- Update：依赖条件成立后，如果 Entity 实现了 IUpdate 接口，World scheduler 才会触发 Entity 的 Update；条件不满足则不会触发。
-- 查询：`entity.AreDependenciesMet<T>()` 可检查某组件依赖是否满足。
-
-
-### 6.异步实体（依赖UniTask插件）
-- 继承 `AsyncEntity` 并实现 `OnLoadAsync`，通过 `AddComponentAsync<T>(...)` 或 `AddChildAsync<T>(...)` 添加。加载成功后才会注册更新并触发依赖处理，取消/异常会自动移除组件。
+内置组合策略：
 
 ```csharp
-public class AsyncResourceLoader : AsyncEntity, IAwake<string>
+IUpdateStrategy all = new AllStrategy(strategyA, strategyB);
+IUpdateStrategy any = new AnyStrategy(strategyA, strategyB);
+```
+
+## 组件依赖
+
+组件可以声明依赖，依赖满足后才会进入有效更新。
+
+```csharp
+public sealed class MovementComponent : Entity, IAwake
 {
-    private string _resourcePath;
-
-    public void Awake(string resourcePath)
+    public void Awake()
     {
-        _resourcePath = resourcePath;
-    }
-
-    protected override async UniTask OnLoadAsync(CancellationToken cancelToken)
-    {
-        // 异步加载资源
-        await LoadResourceAsync(_resourcePath, cancelToken);
-    }
-
-    protected override void OnLoaded()
-    {
-        // 加载完成后的处理
-        GELog.Info($"Resource loaded: {_resourcePath}");
-    }
-
-    private async UniTask LoadResourceAsync(string path, CancellationToken token)
-    {
-        // 模拟异步加载
-        await UniTask.Delay(1000, cancellationToken: token);
     }
 }
 
-// 使用异步组件
-var loader = await entity.AddComponentAsync<AsyncResourceLoader, string>("path/to/resource");
+[DependsOn(typeof(MovementComponent))]
+public sealed class CombatComponent : DependentComponentBase, IAwake, IUpdate
+{
+    public void Awake()
+    {
+    }
+
+    protected override void OnActivationChanged(bool isActive)
+    {
+        // isActive 为 true 表示依赖组件已经满足。
+    }
+
+    public void Update(float time)
+    {
+        // 依赖不满足时不会被调度。
+    }
+}
+
+var unit = scene.AddChild<UnitEntity, string>("Player");
+var combat = unit.AddComponent<CombatComponent>();
+
+bool readyBefore = unit.AreDependenciesMet<CombatComponent>(); // false
+
+unit.AddComponent<MovementComponent>();
+
+bool readyAfter = unit.AreDependenciesMet<CombatComponent>(); // true
 ```
 
-### 6.Entity 使用对象池与释放
-- 大多创建 API 有 `isFromPool` 参数；若为 `true`，实例来自 `ObjectPool`。
-- 调用 `Destroy()` 会：解绑视图、释放子节点与组件、通知系统 `Destroy`、将对象回收到池。
+如果不想继承 `DependentComponentBase`，可以直接实现 `IDependentComponent`。
 
-### 7.ObjectPool
-- 对象池是 `World` 生命周期内的内部服务，业务侧通过 `AddChild(..., isFromPool: true)` 或 `AddComponent(..., isFromPool: true)` 启用 Entity 池化。
-- 不推荐业务代码直接访问对象池；对象池实例会在 `World.Dispose()` 时清空。
+## 对象池
+
+Entity 支持从内部对象池创建：
+
+```csharp
+var bullet = scene.AddPooledChild<BulletEntity>();
+var stats = player.AddPooledComponent<StatsComponent, int, float>(100, 50f);
+```
+
+对象池由 `World` 管理。业务侧通常不直接访问 `ObjectPool`。调用 `Destroy()` 后，如果对象来自池，会回收到池中等待复用。
+
+使用对象池时建议：
+
+- 所有运行时状态都在 `Awake` 中重置。
+- 不要在外部长期保存裸 `Entity` 引用，优先使用 `EntityRef<T>`。
+- 不要把 `EntityHandle` 当作业务存档 id。
+
+## 诊断和日志
+
+Core 提供层级快照和校验：
+
+```csharp
+EntitySnapshot snapshot = World.Instance.CaptureEntitySnapshot();
+EntityValidationResult result = World.Instance.ValidateEntities();
+
+if (!result.IsValid)
+{
+    foreach (EntityValidationIssue issue in result.Issues)
+    {
+        Console.WriteLine(issue.Message);
+    }
+}
+```
+
+日志默认静默：
+
+```csharp
+Log.Logger = new ConsoleLogger();
+Log.SetLogLevel(debug: true, info: true, warning: true, error: true);
+```
+
+Unity 中 `GameEntityRunner.UseUnityLogger = true` 时，会自动设置 Unity logger。
+
+## Unity 用法
+
+Unity 包名称：
+
+```text
+GameEntity for Unity
+```
+
+代码命名空间：
+
+```csharp
+using GameEntity;
+using GameEntity.Unity;
+```
+
+Unity 场景中只需要一个入口组件：
+
+```text
+GameEntityRunner
+```
+
+推荐配置：
+
+- `ViewRoot`：Entity 调试视图挂载根节点；为空时使用 runner 所在 GameObject。
+- `AutoCreateViews`：自动为 Entity 创建 GameObject 视图。
+- `DestroyViewsOnEntityDestroy`：Entity 销毁时同步销毁视图。
+- `UseUnityLogger`：使用 Unity `Debug` 输出 GameEntity 日志。
+- `OwnsWorldLifetime`：runner 销毁时是否 `World.Instance.Dispose()`。
+
+示例：
+
+```csharp
+public sealed class GameStarter : MonoBehaviour
+{
+    private Scene _scene;
+
+    private void Start()
+    {
+        _scene = World.Instance.AddScene("Battle", new BattleScene("Battle"));
+
+        var player = _scene.AddChild<UnitEntity, string>("Player");
+        player.AddComponent<StatsComponent, int, float>(100, 50f);
+    }
+
+    private void OnDestroy()
+    {
+        if (_scene != null && !_scene.IsDestroyed)
+        {
+            _scene.Destroy();
+        }
+    }
+}
+```
+
+导入 sample 后可运行：
+
+```text
+Samples/GameEntity for Unity/0.1.0/GameEntity Demo/GameEntityDemo.unity
+```
+
+或直接查看包内源示例：
+
+```text
+unity/Packages/com.firleaves.gameentity.unity/Samples~/GameEntityDemo
+```
+
+运行 demo 后，Hierarchy 中会出现 Entity 树投影。3 秒后示例会调用 `Entity.ReparentTo`，可以看到 Monster 从 Scene 下移动到 Player 下。
 
 ## 推荐实践
 
-### 1. 职责单一的组件，多用组合，代替继承
+### 1. 用 Child 表达对象树，用 Component 表达能力
+
 ```csharp
-// 推荐：职责单一的组件
-public class HealthComponent : Entity, IAwake<int>
-{
-    public int MaxHealth { get; private set; }
-    public int CurrentHealth { get; private set; }
+var player = scene.AddChild<UnitEntity, string>("Player");
+player.AddComponent<StatsComponent, int, float>(100, 50f);
+player.AddComponent<InventoryComponent, int>(20);
+```
 
-    public void Awake(int maxHealth)
+不要为了复用逻辑写很深的继承树。优先拆成小组件挂载。
+
+### 2. Scene 只做根和编排
+
+`Scene` 负责创建初始实体、承载场景级根节点。具体业务逻辑放到 Entity 或 Component 中。
+
+### 3. 生命周期状态在 Awake 重置
+
+尤其是对象池实体，所有可变状态必须在 `Awake` 中重置：
+
+```csharp
+public sealed class BulletEntity : Entity, IAwake<float>, IUpdate
+{
+    private float _speed;
+    private float _life;
+
+    public void Awake(float speed)
     {
-        MaxHealth = maxHealth;
-        CurrentHealth = maxHealth;
+        _speed = speed;
+        _life = 0f;
     }
-}
 
-// 推荐：组合多个简单组件
-public class CharacterEntity : Entity, IAwake
-{
-    public void Awake()
+    public void Update(float time)
     {
-        AddComponent<HealthComponent, int>(100);
-        AddComponent<MovementComponent>();
-        AddComponent<CombatComponent>(); // 依赖于Health和Movement
+        _life += time;
+        if (_life > 3f)
+        {
+            Destroy();
+        }
     }
 }
 ```
 
-### 2.对于多态行为，使用接口拓展，Entity作为容器持有引用
+### 4. 引用跨帧保存用 EntityRef
 
 ```csharp
-public interface IAction
+private EntityRef<UnitEntity> _target;
+
+public void SetTarget(UnitEntity target)
 {
-    void OnInit();
-    void OnExecute();
-    void OnDestroy();
+    _target = target;
 }
-// 推荐：组合多个简单组件
-public class ActionEntity : Entity, IAwake<IAction>,IUpdate,IDestroy
+
+public void Update(float time)
 {
-    private IAction _actioin;
-
-    public void Awake(IAction action)
+    if (_target.TryGet(out var target))
     {
-       _actioin = action
-       _action?.OnInit();
-    }
-
-    public void Update(float deltaTime)
-    {
-        _action?.OnExecute();
-    }
-
-    public void OnDestroy()
-    {
-        // 销毁时清理
-        _action?.OnExecute();
-        _action = null;
+        // target 仍然存活。
     }
 }
 ```
+
+### 5. Unity 只看数据，不改数据
+
+Unity 里的 GameObject 层级是 Entity 树的投影，方便观察数据。业务侧改变父子关系时，始终调用 core API：
+
+```csharp
+child.ReparentTo(newParent);
+```
+
+不要通过拖动 GameObject 或直接设置 `transform.parent` 来表达 Entity 关系。
