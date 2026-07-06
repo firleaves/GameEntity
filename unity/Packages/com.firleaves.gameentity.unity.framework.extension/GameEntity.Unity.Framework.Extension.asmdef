@@ -1,0 +1,20 @@
+{
+  "name": "GameEntity.Unity.Framework.Extension",
+  "rootNamespace": "GameEntity.Unity.Framework.Extension",
+  "references": [
+    "GameEntity.Unity",
+    "UniTask",
+    "GameEntity.Unity.Framework"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "GameEntity.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

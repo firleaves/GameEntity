@@ -1,0 +1,19 @@
+{
+  "name": "com.firleaves.gameentity.unity.framework",
+  "displayName": "GameEntity Unity Framework",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Optional gameplay framework built on GameEntity for Unity, with resource, UI, scene, save, audio, timer, event, localization, patch, and flow services.",
+  "keywords": [
+    "gameentity",
+    "unity",
+    "framework",
+    "gameplay"
+  ],
+  "dependencies": {
+    "com.firleaves.gameentity.unity": "0.1.0",
+    "com.tuyoogame.yooasset": "2.3.19",
+    "com.unity.ugui": "2.0.0"
+  },
+  "license": "MIT"
+}

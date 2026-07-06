@@ -1,0 +1,21 @@
+{
+  "name": "GameEntity.Unity.Framework",
+  "rootNamespace": "GameEntity.Unity.Framework",
+  "references": [
+    "GameEntity.Unity",
+    "UniTask",
+    "YooAsset",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "GameEntity.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
