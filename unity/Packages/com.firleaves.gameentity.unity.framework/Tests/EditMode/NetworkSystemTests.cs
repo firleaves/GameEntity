@@ -19,6 +19,7 @@ namespace GameEntity.Unity.Framework.Tests
                 .Register<GoldChangedPacket>(102);
             _network = new NetworkSystemEntity();
             _network.Awake(NetworkOptions.CreateDefault());
+            _network.SetDefaultProtocol(_protocol);
         }
 
         [TearDown]
@@ -131,17 +132,40 @@ namespace GameEntity.Unity.Framework.Tests
             Assert.AreEqual(0, _network.GetSnapshot().ChannelCount);
         }
 
+        [Test]
+        public void CreateMockChannel_UsesDefaultProtocol()
+        {
+            var channel = _network.CreateMockChannel(Guid.NewGuid().ToString("N"));
+
+            Assert.AreEqual(NetworkChannelState.Closed, channel.State);
+            Assert.AreEqual(10f, channel.CallTimeoutSeconds);
+        }
+
+        [Test]
+        public void ChannelRuntimeSettings_CanBeChanged()
+        {
+            var channel = CreateMockChannel(new MockNetworkTransport());
+
+            channel.HeartbeatIntervalSeconds = 2f;
+            channel.MaxMissHeartbeatCount = 5;
+            channel.CallTimeoutSeconds = 3f;
+            channel.MaxPacketSize = 4096;
+
+            Assert.AreEqual(2f, channel.HeartbeatIntervalSeconds);
+            Assert.AreEqual(5, channel.MaxMissHeartbeatCount);
+            Assert.AreEqual(3f, channel.CallTimeoutSeconds);
+            Assert.AreEqual(4096, channel.MaxPacketSize);
+        }
+
         private INetworkChannel CreateMockChannel(
             MockNetworkTransport transport,
             float callTimeoutSeconds = 10f,
             float heartbeatIntervalSeconds = 10f,
             int maxMissHeartbeatCount = 3)
         {
-            return _network.CreateChannel(Guid.NewGuid().ToString("N"), new NetworkChannelOptions
+            return _network.CreateChannel(Guid.NewGuid().ToString("N"), NetworkTransportKind.Custom, new NetworkChannelConfig
             {
-                Transport = NetworkTransportKind.Custom,
                 CustomTransport = transport,
-                Protocol = _protocol,
                 CallTimeoutSeconds = callTimeoutSeconds,
                 HeartbeatIntervalSeconds = heartbeatIntervalSeconds,
                 MaxMissHeartbeatCount = maxMissHeartbeatCount

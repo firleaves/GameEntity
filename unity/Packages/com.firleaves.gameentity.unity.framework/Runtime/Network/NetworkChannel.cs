@@ -6,7 +6,7 @@ namespace GameEntity.Unity.Framework
 {
     internal sealed class NetworkChannel : INetworkChannel
     {
-        private readonly NetworkChannelRuntimeOptions _options;
+        private readonly NetworkChannelRuntimeConfig _config;
         private readonly INetworkTransport _transport;
         private readonly INetworkProtocol _protocol;
         private readonly NetworkPacketRouter _router = new NetworkPacketRouter();
@@ -17,19 +17,25 @@ namespace GameEntity.Unity.Framework
         private float _lastReceiveElapsedSeconds;
         private int _missHeartbeatCount;
 
-        public NetworkChannel(string name, NetworkChannelRuntimeOptions options)
+        public NetworkChannel(string name, NetworkChannelRuntimeConfig config)
         {
             if (string.IsNullOrWhiteSpace(name))
             {
                 throw new FrameworkException("创建网络频道失败：name 不能为空。");
             }
 
-            _options = options ?? throw new FrameworkException("创建网络频道失败：options 不能为空。");
-            _protocol = _options.Protocol ?? throw new FrameworkException("创建网络频道失败：Protocol 不能为空。");
-            _transport = NetworkTransportFactory.Create(_options);
-            _writer = new NetworkBufferWriter(Math.Max(1024, _options.SendBufferSize));
-            _receiveBuffer = new NetworkReceiveBuffer(Math.Max(1024, _options.ReceiveBufferSize));
+            _config = config ?? throw new FrameworkException("创建网络频道失败：config 不能为空。");
+            _protocol = _config.Protocol ?? throw new FrameworkException("创建网络频道失败：Protocol 不能为空。");
+            _transport = NetworkTransportFactory.Create(_config);
+            _writer = new NetworkBufferWriter(Math.Max(1024, _config.InitialSendBufferSize));
+            _receiveBuffer = new NetworkReceiveBuffer(
+                Math.Max(1024, _config.InitialReceiveBufferSize),
+                _config.MaxBufferRetainSize);
             Name = name;
+            HeartbeatIntervalSeconds = _config.HeartbeatIntervalSeconds;
+            MaxMissHeartbeatCount = _config.MaxMissHeartbeatCount;
+            CallTimeoutSeconds = _config.CallTimeoutSeconds;
+            MaxPacketSize = _config.MaxPacketSize;
             BindTransport();
         }
 
@@ -38,6 +44,12 @@ namespace GameEntity.Unity.Framework
         public NetworkChannelState State { get; private set; } = NetworkChannelState.Closed;
         public int SentPacketCount { get; private set; }
         public int ReceivedPacketCount { get; private set; }
+        public float HeartbeatIntervalSeconds { get; set; }
+        public int MaxMissHeartbeatCount { get; set; }
+        public float CallTimeoutSeconds { get; set; }
+        public int MaxPacketSize { get; set; }
+        public int MissHeartbeatCount => _missHeartbeatCount;
+        public int PendingCallCount => _callBox.Count;
 
         public event Action<NetworkConnectedEvent> Connected;
         public event Action<NetworkClosedEvent> Closed;
@@ -56,8 +68,8 @@ namespace GameEntity.Unity.Framework
             {
                 Address = address,
                 Host = address,
-                ReceiveBufferSize = _options.ReceiveBufferSize,
-                SendBufferSize = _options.SendBufferSize
+                ReceiveBufferSize = _config.TransportReceiveBufferSize,
+                SendBufferSize = _config.TransportSendBufferSize
             }, ct);
         }
 
@@ -78,8 +90,8 @@ namespace GameEntity.Unity.Framework
                 Host = host,
                 Port = port,
                 Address = $"{host}:{port}",
-                ReceiveBufferSize = _options.ReceiveBufferSize,
-                SendBufferSize = _options.SendBufferSize
+                ReceiveBufferSize = _config.TransportReceiveBufferSize,
+                SendBufferSize = _config.TransportSendBufferSize
             }, ct);
         }
 
@@ -114,6 +126,7 @@ namespace GameEntity.Unity.Framework
 
             _transport.Send(_writer.ToSegment());
             SentPacketCount++;
+            _writer.TrimExcess(_config.MaxBufferRetainSize);
         }
 
         public UniTask<TResponse> CallAsync<TRequest, TResponse>(TRequest request, CancellationToken ct = default)
@@ -126,7 +139,7 @@ namespace GameEntity.Unity.Framework
             var task = _callBox.Add<TResponse>(
                 request,
                 _protocol,
-                _options.CallTimeoutSeconds,
+                CallTimeoutSeconds,
                 ct);
             try
             {
@@ -172,14 +185,14 @@ namespace GameEntity.Unity.Framework
             _transport.Tick(dt);
             _callBox.Update(dt);
 
-            if (!_transport.IsConnected || _options.HeartbeatIntervalSeconds <= 0f)
+            if (!_transport.IsConnected || HeartbeatIntervalSeconds <= 0f)
             {
                 return;
             }
 
             _heartbeatElapsedSeconds += dt;
             _lastReceiveElapsedSeconds += dt;
-            if (_heartbeatElapsedSeconds < _options.HeartbeatIntervalSeconds)
+            if (_heartbeatElapsedSeconds < HeartbeatIntervalSeconds)
             {
                 return;
             }
@@ -191,12 +204,12 @@ namespace GameEntity.Unity.Framework
                 Send(heartbeat);
             }
 
-            if (_lastReceiveElapsedSeconds >= _options.HeartbeatIntervalSeconds)
+            if (_lastReceiveElapsedSeconds >= HeartbeatIntervalSeconds)
             {
                 _missHeartbeatCount++;
                 HeartbeatMissed?.Invoke(new NetworkHeartbeatEvent(this, _missHeartbeatCount));
-                if (_options.MaxMissHeartbeatCount > 0 &&
-                    _missHeartbeatCount >= _options.MaxMissHeartbeatCount)
+                if (MaxMissHeartbeatCount > 0 &&
+                    _missHeartbeatCount >= MaxMissHeartbeatCount)
                 {
                     _transport.Close(NetworkCloseReason.HeartbeatTimeout, "心跳超时。");
                 }
@@ -255,7 +268,7 @@ namespace GameEntity.Unity.Framework
         private void OnTransportClosed(NetworkCloseReason reason, string message)
         {
             State = NetworkChannelState.Closed;
-            if (_options.ClosePendingCallsOnDisconnect)
+            if (_config.ClosePendingCallsOnDisconnect)
             {
                 _callBox.CancelAll(reason);
             }
@@ -267,10 +280,18 @@ namespace GameEntity.Unity.Framework
         {
             _lastReceiveElapsedSeconds = 0f;
             _missHeartbeatCount = 0;
-            _receiveBuffer.Append(bytes);
-            while (_receiveBuffer.TryReadPacket(_protocol, out var packetBytes))
+            try
             {
-                DecodeAndDispatch(packetBytes);
+                _receiveBuffer.Append(bytes);
+                while (_receiveBuffer.TryReadPacket(_protocol, MaxPacketSize, out var packetBytes))
+                {
+                    DecodeAndDispatch(packetBytes);
+                }
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(new NetworkErrorEvent(this, ex, ex.Message));
+                _transport.Close(NetworkCloseReason.Error, ex.Message);
             }
         }
 

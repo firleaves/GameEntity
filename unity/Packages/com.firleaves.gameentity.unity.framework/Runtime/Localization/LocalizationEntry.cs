@@ -1,0 +1,14 @@
+using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
+
+namespace GameEntity.Unity.Framework
+{
+    [Serializable]
+    public sealed class LocalizationEntry
+    {
+        public string Key;
+        public string Value;
+    }
+
+}

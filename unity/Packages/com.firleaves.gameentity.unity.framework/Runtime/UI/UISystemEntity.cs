@@ -9,14 +9,6 @@ using UnityEngine.UI;
 
 namespace GameEntity.Unity.Framework
 {
-    public sealed class UISystemDependencies
-    {
-        public UIOptions Options;
-        public IInstancePool InstancePool;
-        public Transform FrameworkRoot;
-        public bool AutoCreateEventSystem;
-    }
-
     public sealed class UISystemEntity : Entity, IAwake<UISystemDependencies>, IDestroy, IUISystem
     {
         private readonly Dictionary<string, UIGroupEntity> _groups = new Dictionary<string, UIGroupEntity>(StringComparer.Ordinal);
@@ -362,4 +354,5 @@ namespace GameEntity.Unity.Framework
 #endif
         }
     }
+
 }

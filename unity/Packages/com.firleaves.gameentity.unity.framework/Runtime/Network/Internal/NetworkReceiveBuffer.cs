@@ -5,11 +5,15 @@ namespace GameEntity.Unity.Framework
     internal sealed class NetworkReceiveBuffer
     {
         private byte[] _buffer;
+        private readonly int _initialCapacity;
+        private readonly int _maxRetainSize;
         private int _length;
 
-        public NetworkReceiveBuffer(int capacity)
+        public NetworkReceiveBuffer(int capacity, int maxRetainSize)
         {
-            _buffer = new byte[Math.Max(1024, capacity)];
+            _initialCapacity = Math.Max(1024, capacity);
+            _maxRetainSize = Math.Max(_initialCapacity, maxRetainSize);
+            _buffer = new byte[_initialCapacity];
         }
 
         public void Append(ArraySegment<byte> bytes)
@@ -24,7 +28,7 @@ namespace GameEntity.Unity.Framework
             _length += bytes.Count;
         }
 
-        public bool TryReadPacket(INetworkProtocol protocol, out ArraySegment<byte> packet)
+        public bool TryReadPacket(INetworkProtocol protocol, int maxPacketSize, out ArraySegment<byte> packet)
         {
             packet = default;
             if (protocol == null || _length < protocol.PacketHeaderLength)
@@ -34,8 +38,18 @@ namespace GameEntity.Unity.Framework
 
             var reader = new NetworkBufferReader(new ArraySegment<byte>(_buffer, 0, _length));
             if (!protocol.TryGetPacketLength(reader, out var packetLength) ||
-                packetLength <= 0 ||
-                _length < packetLength)
+                packetLength <= 0)
+            {
+                return false;
+            }
+
+            var packetLimit = Math.Max(1024, maxPacketSize);
+            if (packetLength > packetLimit)
+            {
+                throw new FrameworkException($"网络包过大：{packetLength}/{packetLimit}");
+            }
+
+            if (_length < packetLength)
             {
                 return false;
             }
@@ -49,6 +63,7 @@ namespace GameEntity.Unity.Framework
             }
 
             _length = remaining;
+            TrimExcessIfNeeded();
             packet = new ArraySegment<byte>(copy);
             return true;
         }
@@ -56,6 +71,7 @@ namespace GameEntity.Unity.Framework
         public void Clear()
         {
             _length = 0;
+            TrimExcessIfNeeded();
         }
 
         private void EnsureCapacity(int capacity)
@@ -72,6 +88,14 @@ namespace GameEntity.Unity.Framework
             }
 
             Array.Resize(ref _buffer, next);
+        }
+
+        private void TrimExcessIfNeeded()
+        {
+            if (_length == 0 && _buffer.Length > _maxRetainSize)
+            {
+                _buffer = new byte[_initialCapacity];
+            }
         }
     }
 }

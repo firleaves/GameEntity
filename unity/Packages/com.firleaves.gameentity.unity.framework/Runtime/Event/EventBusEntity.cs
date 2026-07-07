@@ -4,13 +4,20 @@ using GameEntity;
 
 namespace GameEntity.Unity.Framework
 {
-    public sealed class EventBusEntity : Entity, IAwake, IDestroy, IEventBus
+    public sealed class EventBusEntity : Entity, IAwake<EventBusOptions>, IUpdate, IDestroy, IEventBus
     {
         private readonly Dictionary<Type, List<Subscription>> _subscriptions = new Dictionary<Type, List<Subscription>>();
-        private readonly List<Subscription> _dispatchBuffer = new List<Subscription>();
+        private readonly Queue<QueuedEvent> _queue = new Queue<QueuedEvent>();
+        private EventBusOptions _options;
 
-        public void Awake()
+        public void Awake(EventBusOptions options)
         {
+            _options = options != null ? options.Clone() : EventBusOptions.CreateDefault();
+        }
+
+        public void Update(float deltaTime)
+        {
+            Flush(_options.MaxFlushCountPerFrame);
         }
 
         public void OnDestroy()
@@ -30,30 +37,36 @@ namespace GameEntity.Unity.Framework
 
         public void Publish<TEvent>(TEvent evt)
         {
-            var type = typeof(TEvent);
-            if (!_subscriptions.TryGetValue(type, out var list) || list.Count == 0)
+            Publish(typeof(TEvent), evt);
+        }
+
+        public void Post<TEvent>(TEvent evt)
+        {
+            if (_options.MaxQueuedEventCount > 0 && _queue.Count >= _options.MaxQueuedEventCount)
             {
-                return;
+                throw new FrameworkException($"事件队列已满：{_queue.Count}/{_options.MaxQueuedEventCount}");
             }
 
-            _dispatchBuffer.Clear();
-            _dispatchBuffer.AddRange(list);
-            for (var i = 0; i < _dispatchBuffer.Count; i++)
-            {
-                var subscription = _dispatchBuffer[i];
-                if (!subscription.Active)
-                {
-                    continue;
-                }
+            _queue.Enqueue(new QueuedEvent(typeof(TEvent), evt));
+        }
 
-                subscription.Invoke(evt);
-                if (subscription.Once)
-                {
-                    subscription.Dispose();
-                }
+        public int Flush(int maxCount = -1)
+        {
+            if (_queue.Count == 0)
+            {
+                return 0;
             }
 
-            _dispatchBuffer.Clear();
+            var count = 0;
+            var limit = maxCount < 0 ? int.MaxValue : maxCount;
+            while (_queue.Count > 0 && count < limit)
+            {
+                var queued = _queue.Dequeue();
+                Publish(queued.EventType, queued.Event);
+                count++;
+            }
+
+            return count;
         }
 
         public void Clear<TEvent>()
@@ -84,7 +97,46 @@ namespace GameEntity.Unity.Framework
             }
 
             _subscriptions.Clear();
-            _dispatchBuffer.Clear();
+            _queue.Clear();
+        }
+
+        public EventBusSnapshot GetSnapshot()
+        {
+            var types = new List<EventBusTypeInfo>(_subscriptions.Count);
+            var subscriberCount = 0;
+            foreach (var pair in _subscriptions)
+            {
+                var activeCount = 0;
+                var list = pair.Value;
+                for (var i = 0; i < list.Count; i++)
+                {
+                    if (list[i].Active)
+                    {
+                        activeCount++;
+                    }
+                }
+
+                if (activeCount <= 0)
+                {
+                    continue;
+                }
+
+                subscriberCount += activeCount;
+                types.Add(new EventBusTypeInfo
+                {
+                    EventType = pair.Key,
+                    SubscriberCount = activeCount
+                });
+            }
+
+            return new EventBusSnapshot
+            {
+                CapturedAtUtc = DateTime.UtcNow,
+                SubscriberCount = subscriberCount,
+                EventTypeCount = types.Count,
+                QueuedEventCount = _queue.Count,
+                Types = types
+            };
         }
 
         private IDisposable SubscribeInternal<TEvent>(Action<TEvent> handler, bool once)
@@ -104,6 +156,55 @@ namespace GameEntity.Unity.Framework
             var subscription = new Subscription(list, evt => handler((TEvent)evt), once);
             list.Add(subscription);
             return subscription;
+        }
+
+        private void Publish(Type type, object evt)
+        {
+            if (!_subscriptions.TryGetValue(type, out var list) || list.Count == 0)
+            {
+                return;
+            }
+
+            var snapshot = list.ToArray();
+            for (var i = 0; i < snapshot.Length; i++)
+            {
+                var subscription = snapshot[i];
+                if (!subscription.Active)
+                {
+                    continue;
+                }
+
+                if (subscription.Once)
+                {
+                    subscription.Dispose();
+                }
+
+                try
+                {
+                    subscription.Invoke(evt);
+                }
+                catch (Exception ex)
+                {
+                    if (_options.ThrowHandlerException)
+                    {
+                        throw;
+                    }
+
+                    UnityEngine.Debug.LogException(ex);
+                }
+            }
+        }
+
+        private readonly struct QueuedEvent
+        {
+            public readonly Type EventType;
+            public readonly object Event;
+
+            public QueuedEvent(Type eventType, object evt)
+            {
+                EventType = eventType;
+                Event = evt;
+            }
         }
 
         private sealed class Subscription : IDisposable

@@ -102,9 +102,4 @@ namespace GameEntity.Unity.Framework
         }
     }
 
-    public sealed class UIGroupOptions
-    {
-        public string GroupName;
-        public Transform Root;
-    }
 }

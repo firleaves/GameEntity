@@ -113,7 +113,7 @@ namespace GameEntity.Unity.Framework
 
             if (runtimeOptions.HasFeature(FrameworkFeatures.Event))
             {
-                var eventBus = AddChild<EventBusEntity>();
+                var eventBus = AddChild<EventBusEntity, EventBusOptions>(runtimeOptions.Event);
                 EventBus = eventBus;
                 SetService<IEventBus>(eventBus);
             }

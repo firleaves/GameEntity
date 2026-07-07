@@ -8,6 +8,7 @@ namespace GameEntity.Unity.Framework
     {
         private readonly Dictionary<string, NetworkChannel> _channels = new Dictionary<string, NetworkChannel>(StringComparer.Ordinal);
         private NetworkOptions _options;
+        private INetworkProtocol _defaultProtocol;
 
         public void Awake(NetworkOptions options)
         {
@@ -32,7 +33,32 @@ namespace GameEntity.Unity.Framework
             CloseAll();
         }
 
-        public INetworkChannel CreateChannel(string name, NetworkChannelOptions options)
+        public void SetDefaultProtocol(INetworkProtocol protocol)
+        {
+            _defaultProtocol = protocol ?? throw new FrameworkException("设置默认网络协议失败：protocol 不能为空。");
+        }
+
+        public INetworkChannel CreateTcpChannel(string name)
+        {
+            return CreateTcpChannel(name, null);
+        }
+
+        public INetworkChannel CreateTcpChannel(string name, NetworkChannelConfig config)
+        {
+            return CreateChannel(name, NetworkTransportKind.Tcp, config);
+        }
+
+        public INetworkChannel CreateMockChannel(string name)
+        {
+            return CreateMockChannel(name, null);
+        }
+
+        public INetworkChannel CreateMockChannel(string name, NetworkChannelConfig config)
+        {
+            return CreateChannel(name, NetworkTransportKind.Mock, config);
+        }
+
+        public INetworkChannel CreateChannel(string name, NetworkTransportKind transport, NetworkChannelConfig config)
         {
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -49,13 +75,9 @@ namespace GameEntity.Unity.Framework
                 throw new FrameworkException($"创建网络频道失败：频道数量已达到上限：{_options.MaxChannelCount}");
             }
 
-            var runtimeOptions = (options ?? new NetworkChannelOptions()).ToRuntimeOptions(_options);
-            if (runtimeOptions.Protocol == null)
-            {
-                throw new FrameworkException("创建网络频道失败：Protocol 不能为空。");
-            }
-
-            var channel = new NetworkChannel(name, runtimeOptions);
+            var runtimeConfig = (config ?? NetworkChannelConfig.CreateDefault())
+                .ToRuntimeConfig(transport, _defaultProtocol, _options);
+            var channel = new NetworkChannel(name, runtimeConfig);
             _channels.Add(name, channel);
             return channel;
         }

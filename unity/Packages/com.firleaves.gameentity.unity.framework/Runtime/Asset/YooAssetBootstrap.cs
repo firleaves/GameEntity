@@ -5,14 +5,6 @@ using YooAsset;
 
 namespace GameEntity.Unity.Framework
 {
-    public interface IYooAssetBootstrap
-    {
-        ResourcePackage DefaultPackage { get; }
-        UniTask InitializeAsync(YooAssetOptions options, CancellationToken ct = default);
-        UniTask DestroyAsync(CancellationToken ct = default);
-        ResourcePackage GetPackage(string packageName);
-    }
-
     public sealed class YooAssetBootstrap : IYooAssetBootstrap
     {
         private YooAssetOptions _options;
@@ -192,4 +184,5 @@ namespace GameEntity.Unity.Framework
             }
         }
     }
+
 }

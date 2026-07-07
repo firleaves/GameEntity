@@ -20,6 +20,7 @@ namespace GameEntity.Unity.Framework
             }
         }
 
+        public NetworkProtocolProfile Profile { get; } = NetworkProtocolProfile.CreateDefault(HeaderLength);
         public int PacketHeaderLength => HeaderLength;
 
         public JsonNetworkProtocol Register<TPacket>(int packetId)
@@ -186,8 +187,4 @@ namespace GameEntity.Unity.Framework
         }
     }
 
-    [Serializable]
-    public sealed class NetworkHeartbeatPacket : INetworkPacket
-    {
-    }
 }

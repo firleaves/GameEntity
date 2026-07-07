@@ -3,14 +3,6 @@ using UnityEngine;
 
 namespace GameEntity.Unity.Framework
 {
-    public enum AssetKind
-    {
-        MainAsset,
-        SubAssets,
-        RawFile,
-        Scene
-    }
-
     public readonly struct AssetKey : IEquatable<AssetKey>
     {
         public readonly string Location;
@@ -109,4 +101,5 @@ namespace GameEntity.Unity.Framework
         {
         }
     }
+
 }
