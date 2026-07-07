@@ -9,7 +9,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.AssetPool;
+                return EnsureFeature(Framework.Scene.AssetPool, FrameworkFeatures.Asset);
             }
         }
 
@@ -18,7 +18,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.GameData;
+                return EnsureFeature(Framework.Scene.GameData, FrameworkFeatures.GameData);
             }
         }
 
@@ -27,7 +27,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.ResourceUpdateSystem;
+                return EnsureFeature(Framework.Scene.ResourceUpdateSystem, FrameworkFeatures.ResourceUpdate);
             }
         }
 
@@ -36,7 +36,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.SceneSystem;
+                return EnsureFeature(Framework.Scene.SceneSystem, FrameworkFeatures.Scene);
             }
         }
 
@@ -45,7 +45,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.InstancePool;
+                return EnsureFeature(Framework.Scene.InstancePool, FrameworkFeatures.InstancePool);
             }
         }
 
@@ -54,7 +54,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.AudioSystem;
+                return EnsureFeature(Framework.Scene.AudioSystem, FrameworkFeatures.Audio);
             }
         }
 
@@ -63,7 +63,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.TimerSystem;
+                return EnsureFeature(Framework.Scene.TimerSystem, FrameworkFeatures.Timer);
             }
         }
 
@@ -72,7 +72,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.EventBus;
+                return EnsureFeature(Framework.Scene.EventBus, FrameworkFeatures.Event);
             }
         }
 
@@ -81,7 +81,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.LocalizationSystem;
+                return EnsureFeature(Framework.Scene.LocalizationSystem, FrameworkFeatures.Localization);
             }
         }
 
@@ -90,7 +90,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.GameSettings;
+                return EnsureFeature(Framework.Scene.GameSettings, FrameworkFeatures.GameSettings);
             }
         }
 
@@ -99,7 +99,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.UISystem;
+                return EnsureFeature(Framework.Scene.UISystem, FrameworkFeatures.UI);
             }
         }
 
@@ -108,7 +108,7 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.SaveSystem;
+                return EnsureFeature(Framework.Scene.SaveSystem, FrameworkFeatures.Save);
             }
         }
 
@@ -117,8 +117,49 @@ namespace GameEntity.Unity.Framework
             get
             {
                 EnsureReady();
-                return Framework.Scene.ProcedureSystem;
+                return EnsureFeature(Framework.Scene.ProcedureSystem, FrameworkFeatures.Procedure);
             }
+        }
+
+        public static INetworkSystem Network
+        {
+            get
+            {
+                EnsureReady();
+                return EnsureFeature(Framework.Scene.NetworkSystem, FrameworkFeatures.Network);
+            }
+        }
+
+        public static T Get<T>()
+        {
+            EnsureReady();
+            return Framework.Scene.GetRequiredService<T>();
+        }
+
+        public static bool TryGet<T>(out T service)
+        {
+            service = default;
+            if (Framework == null || !Framework.IsReady || Framework.Scene == null)
+            {
+                return false;
+            }
+
+            return Framework.Scene.TryGetService(out service);
+        }
+
+        public static bool Has<T>()
+        {
+            return TryGet<T>(out _);
+        }
+
+        public static bool HasFeature(FrameworkFeatures feature)
+        {
+            if (Framework == null || Framework.Options == null)
+            {
+                return false;
+            }
+
+            return Framework.Options.HasFeature(feature);
         }
 
         internal static void Register(FrameworkEntry entry)
@@ -140,6 +181,16 @@ namespace GameEntity.Unity.Framework
             {
                 throw new FrameworkException("Framework 尚未初始化完成，不能访问 GameEntry 服务。");
             }
+        }
+
+        private static T EnsureFeature<T>(T service, FrameworkFeatures feature)
+        {
+            if (service == null)
+            {
+                throw new FrameworkException($"Framework 功能未启用：{feature}");
+            }
+
+            return service;
         }
     }
 }

@@ -11,14 +11,50 @@ namespace GameEntity.Unity.Framework
         WebPlay
     }
 
+    [Flags]
+    public enum FrameworkFeatures
+    {
+        None = 0,
+        Asset = 1 << 0,
+        GameData = 1 << 1,
+        ResourceUpdate = 1 << 2,
+        Scene = 1 << 3,
+        InstancePool = 1 << 4,
+        Audio = 1 << 5,
+        Timer = 1 << 6,
+        Event = 1 << 7,
+        Localization = 1 << 8,
+        GameSettings = 1 << 9,
+        UI = 1 << 10,
+        Save = 1 << 11,
+        Procedure = 1 << 12,
+        Network = 1 << 13,
+        Default = Asset
+            | GameData
+            | ResourceUpdate
+            | Scene
+            | InstancePool
+            | Audio
+            | Timer
+            | Event
+            | Localization
+            | GameSettings
+            | UI
+            | Save
+            | Procedure
+            | Network
+    }
+
     [Serializable]
     public sealed class FrameworkOptions
     {
+        public FrameworkFeatures Features = FrameworkFeatures.Default;
         public YooAssetOptions YooAsset = YooAssetOptions.CreateDefault();
         public AssetPoolPolicy AssetPool = AssetPoolPolicy.CreateDefault();
         public PoolPolicy InstancePool = PoolPolicy.CreateDefault();
         public UIOptions UI = UIOptions.CreateDefault();
         public SaveSystemConfig Save = SaveSystemConfig.CreateDefault();
+        public NetworkOptions Network = NetworkOptions.CreateDefault();
         public bool AutoCreateEventSystem = true;
         public bool DontDestroyOnLoad = true;
 
@@ -31,15 +67,23 @@ namespace GameEntity.Unity.Framework
                 InstancePool = InstancePool != null ? InstancePool.Clone() : PoolPolicy.CreateDefault(),
                 UI = UI != null ? UI.Clone() : UIOptions.CreateDefault(),
                 Save = Save != null ? Save.Clone() : SaveSystemConfig.CreateDefault(),
+                Network = Network != null ? Network.Clone() : NetworkOptions.CreateDefault(),
+                Features = Features,
                 AutoCreateEventSystem = AutoCreateEventSystem,
                 DontDestroyOnLoad = DontDestroyOnLoad
             };
+        }
+
+        public bool HasFeature(FrameworkFeatures feature)
+        {
+            return (Features & feature) == feature;
         }
 
         public static FrameworkOptions CreateDefault()
         {
             return new FrameworkOptions();
         }
+
     }
 
     [Serializable]

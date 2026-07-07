@@ -16,6 +16,9 @@ namespace GameEntity.Unity.Framework
         [SerializeField]
         private FrameworkOptions options = FrameworkOptions.CreateDefault();
 
+        [SerializeField]
+        private FrameworkExtensionAsset[] extensions = System.Array.Empty<FrameworkExtensionAsset>();
+
         private FrameworkScene _scene;
         private Transform _runtimeRoot;
         private CancellationTokenSource _destroyCts;
@@ -70,7 +73,7 @@ namespace GameEntity.Unity.Framework
                 options = initOptions != null ? initOptions.Clone() : FrameworkOptions.CreateDefault();
                 EnsureRuntimeRoot();
                 _scene = CreateScene();
-                await _scene.InitializeAsync(options, _runtimeRoot, ct);
+                await _scene.InitializeAsync(options, _runtimeRoot, extensions, ct);
                 IsReady = true;
                 GameEntry.Register(this);
             }
