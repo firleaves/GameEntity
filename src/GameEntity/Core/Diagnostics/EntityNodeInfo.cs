@@ -17,6 +17,37 @@ namespace GameEntity
             bool isDestroying,
             string entityType,
             string viewName)
+            : this(
+                nodeId,
+                entityId,
+                instanceId,
+                sceneNodeId,
+                ownerNodeId,
+                componentTypeId,
+                kind,
+                isAlive,
+                isDestroying,
+                false,
+                false,
+                entityType,
+                viewName)
+        {
+        }
+
+        public EntityNodeInfo(
+            long nodeId,
+            long entityId,
+            long instanceId,
+            long sceneNodeId,
+            long ownerNodeId,
+            long componentTypeId,
+            EntityNodeKind kind,
+            bool isAlive,
+            bool isDestroying,
+            bool isStarted,
+            bool isStartFaulted,
+            string entityType,
+            string viewName)
         {
             NodeId = nodeId;
             EntityId = entityId;
@@ -27,6 +58,8 @@ namespace GameEntity
             Kind = kind;
             IsAlive = isAlive;
             IsDestroying = isDestroying;
+            IsStarted = isStarted;
+            IsStartFaulted = isStartFaulted;
             EntityType = entityType;
             ViewName = viewName;
         }
@@ -48,6 +81,10 @@ namespace GameEntity
         public bool IsAlive { get; }
 
         public bool IsDestroying { get; }
+
+        public bool IsStarted { get; }
+
+        public bool IsStartFaulted { get; }
 
         public string EntityType { get; }
 

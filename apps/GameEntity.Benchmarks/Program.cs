@@ -104,9 +104,9 @@ namespace GameEntity.Benchmarks
 
         [Benchmark(Baseline = true)]
         [BenchmarkCategory("Create")]
-        public int CreateChildren()
+        public long CreateChildren()
         {
-            int checksum = 0;
+            long checksum = 0;
 
             for (int i = 0; i < EntityCount; i++)
             {
@@ -118,9 +118,9 @@ namespace GameEntity.Benchmarks
 
         [Benchmark]
         [BenchmarkCategory("Create")]
-        public int CreateChildrenWithComponent()
+        public long CreateChildrenWithComponent()
         {
-            int checksum = 0;
+            long checksum = 0;
 
             for (int i = 0; i < EntityCount; i++)
             {
@@ -134,9 +134,9 @@ namespace GameEntity.Benchmarks
 
         [Benchmark]
         [BenchmarkCategory("Read")]
-        public int QueryComponents()
+        public long QueryComponents()
         {
-            int checksum = 0;
+            long checksum = 0;
 
             for (int i = 0; i < _entities.Length; i++)
             {
@@ -151,15 +151,15 @@ namespace GameEntity.Benchmarks
 
         [Benchmark]
         [BenchmarkCategory("Read")]
-        public int ResolveHandles()
+        public long ResolveHandles()
         {
-            int checksum = 0;
+            long checksum = 0;
 
             for (int i = 0; i < _handles.Length; i++)
             {
                 if (World.Instance.TryResolve(_handles[i], out BenchEntity entity))
                 {
-                    checksum += entity.Handle.Generation;
+                    checksum += entity.Handle.NodeId;
                 }
             }
 
@@ -182,9 +182,9 @@ namespace GameEntity.Benchmarks
 
         [Benchmark]
         [BenchmarkCategory("Reparent")]
-        public int ReparentAcrossScenes()
+        public long ReparentAcrossScenes()
         {
-            int checksum = 0;
+            long checksum = 0;
 
             for (int i = 0; i < _movableEntities.Length; i++)
             {
@@ -242,11 +242,11 @@ namespace GameEntity.Benchmarks
 
         [Benchmark]
         [BenchmarkCategory("Scheduler")]
-        public int TickRegisteredUpdates()
+        public int UpdateRegisteredEntities()
         {
             for (int frame = 0; frame < FrameCount; frame++)
             {
-                World.Instance.Tick(0.016f, 0.016f);
+                World.Instance.Update(0.016f);
             }
 
             int checksum = 0;
@@ -270,10 +270,6 @@ namespace GameEntity.Benchmarks
         }
 
         public override void OnDestroy()
-        {
-        }
-
-        protected override void OnDispose()
         {
         }
     }

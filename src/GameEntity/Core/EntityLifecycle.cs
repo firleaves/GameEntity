@@ -13,76 +13,41 @@ namespace GameEntity
 
         public void Awake(Entity entity)
         {
-            try
+            if (entity is IAwake awakable)
             {
-                if (entity is IAwake awakable)
-                {
-                    awakable.Awake();
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Awake error: {e}");
+                awakable.Awake();
             }
         }
 
         public void Awake<P1>(Entity entity, P1 p1)
         {
-            try
+            if (entity is IAwake<P1> awakable)
             {
-                if (entity is IAwake<P1> awakable)
-                {
-                    awakable.Awake(p1);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Awake error: {e}");
+                awakable.Awake(p1);
             }
         }
 
         public void Awake<P1, P2>(Entity entity, P1 p1, P2 p2)
         {
-            try
+            if (entity is IAwake<P1, P2> awakable)
             {
-                if (entity is IAwake<P1, P2> awakable)
-                {
-                    awakable.Awake(p1, p2);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Awake error: {e}");
+                awakable.Awake(p1, p2);
             }
         }
 
         public void Awake<P1, P2, P3>(Entity entity, P1 p1, P2 p2, P3 p3)
         {
-            try
+            if (entity is IAwake<P1, P2, P3> awakable)
             {
-                if (entity is IAwake<P1, P2, P3> awakable)
-                {
-                    awakable.Awake(p1, p2, p3);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Awake error: {e}");
+                awakable.Awake(p1, p2, p3);
             }
         }
 
         public void Awake<P1, P2, P3, P4>(Entity entity, P1 p1, P2 p2, P3 p3, P4 p4)
         {
-            try
+            if (entity is IAwake<P1, P2, P3, P4> awakable)
             {
-                if (entity is IAwake<P1, P2, P3, P4> awakable)
-                {
-                    awakable.Awake(p1, p2, p3, p4);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"Awake error: {e}");
+                awakable.Awake(p1, p2, p3, p4);
             }
         }
 
@@ -91,14 +56,24 @@ namespace GameEntity
             try
             {
                 _world.Hierarchy.Scheduler.Unregister(entity);
-                if (entity is IDestroy destroyable)
-                {
-                    destroyable.OnDestroy();
-                }
             }
             catch (Exception e)
             {
-                Log.Error($"Destroy error: {e}");
+                Log.Error($"Destroy scheduler unregister error: {e}");
+            }
+
+            if (entity is not IDestroy destroyable)
+            {
+                return;
+            }
+
+            try
+            {
+                destroyable.OnDestroy();
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Destroy callback error: {e}");
             }
         }
     }

@@ -12,6 +12,7 @@ namespace GameEntity
         IsComponent = 1 << 2,
         IsCreated = 1 << 3,
         IsNew = 1 << 4,
+        IsTreePublished = 1 << 5,
     }
 
     public class Entity : IPool
@@ -19,12 +20,12 @@ namespace GameEntity
         /// <summary>
         /// 对比两个Entity是否是同一个实体
         /// </summary>
-        public long InstanceId { get; protected set; }
+        public long InstanceId { get; private set; }
 
         /// <summary>
         /// 实体的唯一ID
         /// </summary>
-        public long Id { get; protected internal set; }
+        public long Id { get; private set; }
 
         private EntityStatus _status = EntityStatus.None;
         private string _viewName;
@@ -77,13 +78,10 @@ namespace GameEntity
                     _status &= ~EntityStatus.IsRegister;
                 }
 
-                if (value)
-                {
-                    RegisterSystem();
-                    EntityTreeEventHub.NotifyEntityRegistered(this);
-                }
             }
         }
+
+        internal bool IsTreePublished => (_status & EntityStatus.IsTreePublished) == EntityStatus.IsTreePublished;
 
         internal bool IsComponent
         {
@@ -198,6 +196,16 @@ namespace GameEntity
         {
         }
 
+        internal void CompleteRegistration()
+        {
+            RegisterSystem();
+        }
+
+        internal void MarkTreePublished()
+        {
+            _status |= EntityStatus.IsTreePublished;
+        }
+
         public int ComponentsCount()
         {
             return _hierarchy?.GetComponentsCount(this) ?? 0;
@@ -224,7 +232,7 @@ namespace GameEntity
             return _hierarchy?.GetAllChildren(this) ?? Array.Empty<Entity>();
         }
 
-        public virtual void Destroy()
+        public void Destroy()
         {
             if (IsDestroyed)
             {
@@ -306,7 +314,7 @@ namespace GameEntity
 
         public K GetComponent<K>() where K : Entity
         {
-            return _hierarchy?.GetComponent<K>(this);
+            return _hierarchy?.GetComponent(this, typeof(K)) as K;
         }
 
         public Entity GetComponent(Type type)
@@ -424,6 +432,26 @@ namespace GameEntity
 
         public void ReparentTo(Entity newOwner)
         {
+            if (IsDestroyed || _hierarchy == null || !HierarchyHandle.IsValid || !_hierarchy.TryGetNode(this, out _))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot reparent an Entity that is destroyed or is not attached to the active hierarchy: {GetType().FullName}.");
+            }
+
+            if (newOwner == null || newOwner.IsDestroyed ||
+                newOwner._hierarchy == null || !ReferenceEquals(_hierarchy, newOwner._hierarchy))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot reparent {GetType().FullName} to an invalid owner or a different hierarchy.");
+            }
+
+            _hierarchy.World.ThrowIfNotActive();
+            if (IsComponent && UpdateRequirementMetadata.GetRequirementTypes(GetType()).Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"{GetType().FullName} uses RequireForUpdate and must remain attached as a Component.");
+            }
+
             AttachToParent(newOwner);
         }
 
@@ -439,6 +467,7 @@ namespace GameEntity
 
         internal static Entity Create(World world, Type type, bool isFromPool)
         {
+            world.ThrowIfNotActive();
             Entity entity;
             if (isFromPool)
             {
@@ -451,32 +480,6 @@ namespace GameEntity
 
             entity.ResetHierarchyStateForCreate(isFromPool);
             return entity;
-        }
-
-        public Entity AddComponent(Entity component)
-        {
-            Type type = component.GetType();
-            if (_hierarchy != null && _hierarchy.HasComponent(this, type))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
-
-            component.ComponentParent = this;
-            return component;
-        }
-
-        internal Entity AddComponent(Type type, bool isFromPool = false)
-        {
-            if (_hierarchy != null && _hierarchy.HasComponent(this, type))
-            {
-                throw new Exception($"entity already has component: {type.FullName}");
-            }
-
-            World world = GetWorld();
-            Entity component = Create(world, type, isFromPool);
-            component.Id = Id;
-            component.ComponentParent = this;
-            return component;
         }
 
         public K AddComponentWithId<K>(long id) where K : Entity, IAwake, new()
@@ -493,12 +496,11 @@ namespace GameEntity
             }
 
             World world = GetWorld();
+            world.Hierarchy.ValidateComponentPlacement(type);
             Entity component = Create(world, type, isFromPool);
             component.Id = id;
             component.ComponentParent = this;
-            world.Lifecycle.Awake(component);
-            world.Hierarchy.Scheduler.Register(component);
-            return component as K;
+            return CompleteCreation(component, world, () => world.Lifecycle.Awake(component)) as K;
         }
 
         public K AddComponentWithId<K, P1>(long id, P1 p1) where K : Entity, IAwake<P1>, new()
@@ -515,12 +517,11 @@ namespace GameEntity
             }
 
             World world = GetWorld();
+            world.Hierarchy.ValidateComponentPlacement(type);
             Entity component = Create(world, type, isFromPool);
             component.Id = id;
             component.ComponentParent = this;
-            world.Lifecycle.Awake(component, p1);
-            world.Hierarchy.Scheduler.Register(component);
-            return component as K;
+            return CompleteCreation(component, world, () => world.Lifecycle.Awake(component, p1)) as K;
         }
 
         public K AddComponentWithId<K, P1, P2>(long id, P1 p1, P2 p2) where K : Entity, IAwake<P1, P2>, new()
@@ -537,12 +538,11 @@ namespace GameEntity
             }
 
             World world = GetWorld();
+            world.Hierarchy.ValidateComponentPlacement(type);
             Entity component = Create(world, type, isFromPool);
             component.Id = id;
             component.ComponentParent = this;
-            world.Lifecycle.Awake(component, p1, p2);
-            world.Hierarchy.Scheduler.Register(component);
-            return component as K;
+            return CompleteCreation(component, world, () => world.Lifecycle.Awake(component, p1, p2)) as K;
         }
 
         public K AddComponentWithId<K, P1, P2, P3>(long id, P1 p1, P2 p2, P3 p3) where K : Entity, IAwake<P1, P2, P3>, new()
@@ -559,12 +559,11 @@ namespace GameEntity
             }
 
             World world = GetWorld();
+            world.Hierarchy.ValidateComponentPlacement(type);
             Entity component = Create(world, type, isFromPool);
             component.Id = id;
             component.ComponentParent = this;
-            world.Lifecycle.Awake(component, p1, p2, p3);
-            world.Hierarchy.Scheduler.Register(component);
-            return component as K;
+            return CompleteCreation(component, world, () => world.Lifecycle.Awake(component, p1, p2, p3)) as K;
         }
 
         public K AddComponentWithId<K, P1, P2, P3, P4>(long id, P1 p1, P2 p2, P3 p3, P4 p4) where K : Entity, IAwake<P1, P2, P3, P4>, new()
@@ -581,12 +580,11 @@ namespace GameEntity
             }
 
             World world = GetWorld();
+            world.Hierarchy.ValidateComponentPlacement(type);
             Entity component = Create(world, type, isFromPool);
             component.Id = id;
             component.ComponentParent = this;
-            world.Lifecycle.Awake(component, p1, p2, p3, p4);
-            world.Hierarchy.Scheduler.Register(component);
-            return component as K;
+            return CompleteCreation(component, world, () => world.Lifecycle.Awake(component, p1, p2, p3, p4)) as K;
         }
 
         public K AddComponent<K>() where K : Entity, IAwake, new()
@@ -601,9 +599,7 @@ namespace GameEntity
 
         private K AddComponentCore<K>(bool isFromPool) where K : Entity, IAwake, new()
         {
-            K component = AddComponentWithIdCore<K>(Id, isFromPool);
-            NotifyComponentAdded(component);
-            return component;
+            return AddComponentWithIdCore<K>(Id, isFromPool);
         }
 
         public K AddComponent<K, P1>(P1 p1) where K : Entity, IAwake<P1>, new()
@@ -618,9 +614,7 @@ namespace GameEntity
 
         private K AddComponentCore<K, P1>(P1 p1, bool isFromPool) where K : Entity, IAwake<P1>, new()
         {
-            K component = AddComponentWithIdCore<K, P1>(Id, p1, isFromPool);
-            NotifyComponentAdded(component);
-            return component;
+            return AddComponentWithIdCore<K, P1>(Id, p1, isFromPool);
         }
 
         public K AddComponent<K, P1, P2>(P1 p1, P2 p2) where K : Entity, IAwake<P1, P2>, new()
@@ -635,9 +629,7 @@ namespace GameEntity
 
         private K AddComponentCore<K, P1, P2>(P1 p1, P2 p2, bool isFromPool) where K : Entity, IAwake<P1, P2>, new()
         {
-            K component = AddComponentWithIdCore<K, P1, P2>(Id, p1, p2, isFromPool);
-            NotifyComponentAdded(component);
-            return component;
+            return AddComponentWithIdCore<K, P1, P2>(Id, p1, p2, isFromPool);
         }
 
         public K AddComponent<K, P1, P2, P3>(P1 p1, P2 p2, P3 p3) where K : Entity, IAwake<P1, P2, P3>, new()
@@ -652,9 +644,7 @@ namespace GameEntity
 
         private K AddComponentCore<K, P1, P2, P3>(P1 p1, P2 p2, P3 p3, bool isFromPool) where K : Entity, IAwake<P1, P2, P3>, new()
         {
-            K component = AddComponentWithIdCore<K, P1, P2, P3>(Id, p1, p2, p3, isFromPool);
-            NotifyComponentAdded(component);
-            return component;
+            return AddComponentWithIdCore<K, P1, P2, P3>(Id, p1, p2, p3, isFromPool);
         }
 
         public K AddComponent<K, P1, P2, P3, P4>(P1 p1, P2 p2, P3 p3, P4 p4) where K : Entity, IAwake<P1, P2, P3, P4>, new()
@@ -669,22 +659,7 @@ namespace GameEntity
 
         private K AddComponentCore<K, P1, P2, P3, P4>(P1 p1, P2 p2, P3 p3, P4 p4, bool isFromPool) where K : Entity, IAwake<P1, P2, P3, P4>, new()
         {
-            K component = AddComponentWithIdCore<K, P1, P2, P3, P4>(Id, p1, p2, p3, p4, isFromPool);
-            NotifyComponentAdded(component);
-            return component;
-        }
-
-        private void NotifyComponentAdded<K>(K component) where K : Entity
-        {
-            World world = GetWorld();
-            world.Dependencies.NotifyAddComponent(this, typeof(K));
-            component.ProcessComponentDependencies(world);
-        }
-
-        internal Entity AddChild(Entity entity)
-        {
-            entity.Parent = this;
-            return entity;
+            return AddComponentWithIdCore<K, P1, P2, P3, P4>(Id, p1, p2, p3, p4, isFromPool);
         }
 
         public T AddChild<T>() where T : Entity, IAwake
@@ -701,12 +676,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = world.IdGenerator.GenerateId();
             child.Parent = this;
-            world.Lifecycle.Awake(child);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child));
         }
 
         public T AddChild<T, A>(A a) where T : Entity, IAwake<A>
@@ -723,12 +697,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = world.IdGenerator.GenerateId();
             child.Parent = this;
-            world.Lifecycle.Awake(child, a);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a));
         }
 
         public T AddChild<T, A, B>(A a, B b) where T : Entity, IAwake<A, B>
@@ -745,12 +718,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = world.IdGenerator.GenerateId();
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b));
         }
 
         public T AddChild<T, A, B, C>(A a, B b, C c) where T : Entity, IAwake<A, B, C>
@@ -767,12 +739,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = world.IdGenerator.GenerateId();
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b, c);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b, c));
         }
 
         public T AddChild<T, A, B, C, D>(A a, B b, C c, D d) where T : Entity, IAwake<A, B, C, D>
@@ -789,12 +760,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = world.IdGenerator.GenerateId();
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b, c, d);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b, c, d));
         }
 
         public T AddChildWithId<T>(long id) where T : Entity, IAwake
@@ -806,12 +776,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = Create(world, type, isFromPool) as T;
             child.Id = id;
             child.Parent = this;
-            world.Lifecycle.Awake(child);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child));
         }
 
         public T AddChildWithId<T, A>(long id, A a) where T : Entity, IAwake<A>
@@ -823,12 +792,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = id;
             child.Parent = this;
-            world.Lifecycle.Awake(child, a);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a));
         }
 
         public T AddChildWithId<T, A, B>(long id, A a, B b) where T : Entity, IAwake<A, B>
@@ -840,12 +808,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = id;
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b));
         }
 
         public T AddChildWithId<T, A, B, C>(long id, A a, B b, C c) where T : Entity, IAwake<A, B, C>
@@ -857,12 +824,11 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = id;
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b, c);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b, c));
         }
 
         public T AddChildWithId<T, A, B, C, D>(long id, A a, B b, C c, D d) where T : Entity, IAwake<A, B, C, D>
@@ -874,12 +840,72 @@ namespace GameEntity
         {
             Type type = typeof(T);
             World world = GetWorld();
+            world.Hierarchy.ValidateChildPlacement(this, type);
             T child = (T)Create(world, type, isFromPool);
             child.Id = id;
             child.Parent = this;
-            world.Lifecycle.Awake(child, a, b, c, d);
-            world.Hierarchy.Scheduler.Register(child);
-            return child;
+            return CompleteCreation(child, world, () => world.Lifecycle.Awake(child, a, b, c, d));
+        }
+
+        private static T CompleteCreation<T>(T entity, World world, Action awake) where T : Entity
+        {
+            EntityHandle creationHandle = entity.Handle;
+            long creationInstanceId = entity.InstanceId;
+            using (world.BeginCreationScope())
+            {
+                try
+                {
+                    awake();
+                    EnsureCreationLifetime(entity, world, creationHandle, creationInstanceId, "Awake");
+                    entity.CompleteRegistration();
+                    EnsureCreationLifetime(entity, world, creationHandle, creationInstanceId, "RegisterSystem");
+                    world.Hierarchy.Scheduler.Register(entity);
+                    EnsureCreationLifetime(entity, world, creationHandle, creationInstanceId, "Scheduler registration");
+                    world.QueueEntityRegistration(entity);
+                    return entity;
+                }
+                catch
+                {
+                    if (IsSameCreationLifetime(entity, world, creationHandle, creationInstanceId))
+                    {
+                        entity.Destroy();
+                    }
+
+                    throw;
+                }
+            }
+        }
+
+        private static void EnsureCreationLifetime<T>(
+            T entity,
+            World world,
+            EntityHandle creationHandle,
+            long creationInstanceId,
+            string stage) where T : Entity
+        {
+            if (IsSameCreationLifetime(entity, world, creationHandle, creationInstanceId))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"{entity.GetType().FullName} ended or replaced its Entity lifetime during {stage}; creation cannot be committed.");
+        }
+
+        private static bool IsSameCreationLifetime<T>(
+            T entity,
+            World world,
+            EntityHandle creationHandle,
+            long creationInstanceId) where T : Entity
+        {
+            if (entity == null || entity.IsDestroyed || !creationHandle.IsValid || creationInstanceId == 0 ||
+                entity.Handle != creationHandle || entity.InstanceId != creationInstanceId ||
+                !world.Hierarchy.TryResolve(creationHandle, out Entity resolved))
+            {
+                return false;
+            }
+
+            return ReferenceEquals(entity, resolved);
         }
 
         internal protected virtual long GetLongHashCode(Type type)
@@ -892,6 +918,19 @@ namespace GameEntity
             _hierarchy = hierarchy;
             HierarchyHandle = handle;
             _hierarchyDestroyCompleted = false;
+        }
+
+        internal void EnsureIdentity(IdGenerator idGenerator)
+        {
+            if (Id == 0)
+            {
+                Id = idGenerator.GenerateId();
+            }
+
+            if (InstanceId == 0)
+            {
+                InstanceId = idGenerator.GenerateInstanceId();
+            }
         }
 
         internal void ClearHierarchyHandle()
@@ -913,20 +952,38 @@ namespace GameEntity
                 return;
             }
 
+            bool wasTreePublished = IsTreePublished;
             _hierarchyDestroyCompleted = true;
             BeginDestroyFromHierarchy();
 
             World world = _hierarchy?.World ?? World.Instance;
             if (this is IDestroy)
             {
-                world.Lifecycle.Destroy(this);
+                try
+                {
+                    world.Lifecycle.Destroy(this);
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"Destroy lifecycle error: {GetType().FullName}: {e}");
+                }
             }
 
             _scene = null;
 
-            OnDestroyInternal();
+            try
+            {
+                OnDestroyInternal();
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Internal destroy hook error: {GetType().FullName}: {e}");
+            }
 
-            EntityTreeEventHub.NotifyEntityDestroyed(this);
+            if (wasTreePublished)
+            {
+                world.EntityEvents.NotifyEntityDestroyed(this);
+            }
 
             bool isFromPool = IsFromPool;
             _status = EntityStatus.None;

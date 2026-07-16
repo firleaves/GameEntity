@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace GameEntity
 {
@@ -21,6 +22,21 @@ namespace GameEntity
         public bool TryGetSceneNodeId(string sceneName, out long sceneNodeId)
         {
             return _sceneNameToNodeId.TryGetValue(sceneName, out sceneNodeId);
+        }
+
+        public bool TryGetSceneName(long sceneNodeId, out string sceneName)
+        {
+            return _sceneNameByNodeId.TryGetValue(sceneNodeId, out sceneName);
+        }
+
+        public IReadOnlyList<KeyValuePair<string, long>> GetNameEntries()
+        {
+            return _sceneNameToNodeId.ToList();
+        }
+
+        public IReadOnlyList<KeyValuePair<long, string>> GetNodeEntries()
+        {
+            return _sceneNameByNodeId.ToList();
         }
 
         public void Unregister(long sceneNodeId)

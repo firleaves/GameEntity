@@ -82,6 +82,20 @@ namespace GameEntity
             _records[nodeId] = record;
         }
 
+        public void SetStarted(long nodeId)
+        {
+            var record = _records[nodeId];
+            record.Flags |= EntityNodeFlags.Started;
+            _records[nodeId] = record;
+        }
+
+        public void SetStartFaulted(long nodeId)
+        {
+            var record = _records[nodeId];
+            record.Flags |= EntityNodeFlags.StartFaulted;
+            _records[nodeId] = record;
+        }
+
         public void AttachChild(long ownerNodeId, long childNodeId, long entityId)
         {
             if (!_childrenByOwner.TryGetValue(ownerNodeId, out var children))

@@ -16,5 +16,9 @@ namespace GameEntity
         public bool IsAlive => (Flags & EntityNodeFlags.Alive) == EntityNodeFlags.Alive;
 
         public bool IsDestroying => (Flags & EntityNodeFlags.Destroying) == EntityNodeFlags.Destroying;
+
+        public bool IsStarted => (Flags & EntityNodeFlags.Started) == EntityNodeFlags.Started;
+
+        public bool IsStartFaulted => (Flags & EntityNodeFlags.StartFaulted) == EntityNodeFlags.StartFaulted;
     }
 }

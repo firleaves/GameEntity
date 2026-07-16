@@ -61,9 +61,9 @@ namespace GameEntity.CoreTestApp
             Expect(World.Instance.ValidateEntities().IsValid, "初始 hierarchy 结构必须有效。");
 
             RunFrames(5);
-            Expect(actor.UpdateCount == 5, "actor 应该被 World.Tick 驱动。");
-            Expect(abilitySystem.UpdateCount == 5, "abilitySystem 应该被 World.Tick 驱动。");
-            Expect(effect.UpdateCount == 5, "effect 应该被 World.Tick 驱动。");
+            Expect(actor.UpdateCount == 5, "actor 应该被 World.Update 驱动。");
+            Expect(abilitySystem.UpdateCount == 5, "abilitySystem 应该被 World.Update 驱动。");
+            Expect(effect.UpdateCount == 5, "effect 应该被 World.Update 驱动。");
 
             actor.RemoveComponent<AbilitySystemComponent>();
             Expect(!actor.IsDestroyed, "移除 component 不应该销毁 actor。");
@@ -90,7 +90,7 @@ namespace GameEntity.CoreTestApp
         {
             for (int i = 0; i < count; i++)
             {
-                World.Instance.Tick(0.016f, 0.016f);
+                World.Instance.Update(0.016f);
             }
         }
 

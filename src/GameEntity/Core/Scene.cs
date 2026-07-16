@@ -2,7 +2,6 @@ using System.Diagnostics;
 
 namespace GameEntity
 {
-    [ChildOf]
     public abstract class Scene : Entity, IAwake, IDestroy
     {
 
@@ -16,26 +15,6 @@ namespace GameEntity
             this.IsNew = true;
 
             // Log.Info($"scene create: {this.Name} {this.Id} {this.InstanceId}");
-        }
-
-        internal void EnsureIdentity(IdGenerator idGenerator)
-        {
-            if (this.Id == 0)
-            {
-                this.Id = idGenerator.GenerateId();
-            }
-
-            if (this.InstanceId == 0)
-            {
-                this.InstanceId = idGenerator.GenerateInstanceId();
-            }
-        }
-
-        public override void Destroy()
-        {
-            base.Destroy();
-
-            Log.Info($"scene destroy: {this.Name} {this.Id} {this.InstanceId}");
         }
 
         public virtual void Awake()

@@ -6,55 +6,61 @@ namespace GameEntity
     /// <summary>
     /// Entity 树事件中心。core 只发布实体语义事件，不直接创建任何引擎对象。
     /// </summary>
-    public static class EntityTreeEventHub
+    internal sealed class EntityTreeEventHub
     {
-        private static readonly object LockObj = new object();
-        private static readonly List<IEntityTreeObserver> Observers = new List<IEntityTreeObserver>();
+        private readonly object _lock = new object();
+        private readonly List<IEntityTreeObserver> _observers = new List<IEntityTreeObserver>();
 
-        public static IDisposable Register(IEntityTreeObserver observer)
+        public IDisposable Register(IEntityTreeObserver observer)
         {
             if (observer == null)
             {
                 throw new ArgumentNullException(nameof(observer));
             }
 
-            lock (LockObj)
+            lock (_lock)
             {
-                Observers.Add(observer);
+                _observers.Add(observer);
             }
 
-            return new Registration(observer);
+            return new Registration(this, observer);
         }
 
-        public static void Unregister(IEntityTreeObserver observer)
+        public void Unregister(IEntityTreeObserver observer)
         {
             if (observer == null)
             {
                 return;
             }
 
-            lock (LockObj)
+            lock (_lock)
             {
-                Observers.Remove(observer);
+                _observers.Remove(observer);
             }
         }
 
-        internal static void NotifyEntityRegistered(Entity entity)
+        public void ReplayRegistered(IEntityTreeObserver observer, IEnumerable<Entity> entities)
+        {
+            if (observer == null || entities == null)
+            {
+                return;
+            }
+
+            foreach (Entity entity in entities)
+            {
+                NotifyObserver(observer, entity, static (target, value) => target.OnEntityRegistered(value), "replay");
+            }
+        }
+
+        public void NotifyEntityRegistered(Entity entity)
         {
             foreach (IEntityTreeObserver observer in Snapshot())
             {
-                try
-                {
-                    observer.OnEntityRegistered(entity);
-                }
-                catch (Exception e)
-                {
-                    Log.Error($"Entity tree observer register error: {e}");
-                }
+                NotifyObserver(observer, entity, static (target, value) => target.OnEntityRegistered(value), "register");
             }
         }
 
-        internal static void NotifyEntityParentChanged(Entity entity, Entity oldParent, Entity newParent)
+        public void NotifyEntityParentChanged(Entity entity, Entity oldParent, Entity newParent)
         {
             foreach (IEntityTreeObserver observer in Snapshot())
             {
@@ -69,7 +75,7 @@ namespace GameEntity
             }
         }
 
-        internal static void NotifyEntityDestroyed(Entity entity)
+        public void NotifyEntityDestroyed(Entity entity)
         {
             foreach (IEntityTreeObserver observer in Snapshot())
             {
@@ -84,20 +90,46 @@ namespace GameEntity
             }
         }
 
-        private static IEntityTreeObserver[] Snapshot()
+        public void Clear()
         {
-            lock (LockObj)
+            lock (_lock)
             {
-                return Observers.ToArray();
+                _observers.Clear();
+            }
+        }
+
+        private IEntityTreeObserver[] Snapshot()
+        {
+            lock (_lock)
+            {
+                return _observers.ToArray();
+            }
+        }
+
+        private static void NotifyObserver(
+            IEntityTreeObserver observer,
+            Entity entity,
+            Action<IEntityTreeObserver, Entity> callback,
+            string operation)
+        {
+            try
+            {
+                callback(observer, entity);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Entity tree observer {operation} error: {e}");
             }
         }
 
         private sealed class Registration : IDisposable
         {
+            private EntityTreeEventHub _hub;
             private IEntityTreeObserver _observer;
 
-            public Registration(IEntityTreeObserver observer)
+            public Registration(EntityTreeEventHub hub, IEntityTreeObserver observer)
             {
+                _hub = hub;
                 _observer = observer;
             }
 
@@ -108,7 +140,8 @@ namespace GameEntity
                     return;
                 }
 
-                Unregister(_observer);
+                _hub.Unregister(_observer);
+                _hub = null;
                 _observer = null;
             }
         }

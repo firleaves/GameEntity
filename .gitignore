@@ -90,3 +90,9 @@ mono_crash.*.json
 # Local agent state and unpublished design notes
 .serena/
 /docs/
+
+# Published GameEntity knowledge base
+!/docs/
+/docs/*
+!/docs/knowledge-base/
+!/docs/knowledge-base/**

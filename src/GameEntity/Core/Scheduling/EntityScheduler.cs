@@ -5,18 +5,31 @@ namespace GameEntity
 {
     internal sealed class EntityScheduler
     {
+        private enum UpdatePhase
+        {
+            Update,
+            FixedUpdate,
+        }
+
+        private readonly struct UpdateWorkItem
+        {
+            public UpdateWorkItem(long sceneNodeId, EntityHandle handle)
+            {
+                SceneNodeId = sceneNodeId;
+                Handle = handle;
+            }
+
+            public long SceneNodeId { get; }
+
+            public EntityHandle Handle { get; }
+        }
+
         private readonly EntityHierarchy _hierarchy;
         private readonly Dictionary<long, SceneScheduleBucket> _sceneBuckets = new Dictionary<long, SceneScheduleBucket>();
-        private IUpdateStrategy _updateStrategy;
 
         public EntityScheduler(EntityHierarchy hierarchy)
         {
             _hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
-        }
-
-        public void SetUpdateStrategy(IUpdateStrategy strategy)
-        {
-            _updateStrategy = strategy;
         }
 
         public void Register(Entity entity)
@@ -26,8 +39,46 @@ namespace GameEntity
                 return;
             }
 
+            bool participatesInUpdate = entity is IUpdate || (entity is IStart && entity is not IFixedUpdate);
+            bool participatesInFixedUpdate = entity is IFixedUpdate;
+            bool participatesInUpdateLifecycle = participatesInUpdate || participatesInFixedUpdate;
+
+            if (entity is IEntityUpdateInterval && entity is not IUpdate)
+            {
+                throw new InvalidOperationException(
+                    $"{entity.GetType().FullName} implements IEntityUpdateInterval but does not implement IUpdate.");
+            }
+
+            Type[] requirementTypes = UpdateRequirementMetadata.GetRequirementTypes(entity.GetType());
+            if (requirementTypes.Length > 0)
+            {
+                UpdateRequirementMetadata.ValidateNoCycles(entity.GetType());
+
+                if (record.Kind != EntityNodeKind.ComponentEntity)
+                {
+                    throw new InvalidOperationException(
+                        $"{entity.GetType().FullName} uses RequireForUpdate but is not attached as a Component.");
+                }
+
+                if (!participatesInUpdateLifecycle)
+                {
+                    throw new InvalidOperationException(
+                        $"{entity.GetType().FullName} uses RequireForUpdate but implements none of IStart, IFixedUpdate, or IUpdate.");
+                }
+            }
+
+            if (!participatesInUpdateLifecycle || record.IsStartFaulted)
+            {
+                return;
+            }
+
             var bucket = GetOrCreateSceneBucket(record.SceneNodeId);
-            if (entity is IUpdate)
+            if (participatesInFixedUpdate)
+            {
+                bucket.FixedUpdate.Register(entity.Handle);
+            }
+
+            if (participatesInUpdate)
             {
                 bucket.Update.Register(entity.Handle);
             }
@@ -52,6 +103,7 @@ namespace GameEntity
 
             foreach (var bucket in _sceneBuckets.Values)
             {
+                bucket.FixedUpdate.Unregister(handle);
                 bucket.Update.Unregister(handle);
             }
         }
@@ -69,7 +121,8 @@ namespace GameEntity
             }
 
             var newBucket = GetOrCreateSceneBucket(newSceneNodeId);
-            MoveIfRegistered(oldBucket, newBucket, handle);
+            MoveIfRegistered(oldBucket.FixedUpdate, newBucket.FixedUpdate, handle);
+            MoveIfRegistered(oldBucket.Update, newBucket.Update, handle);
         }
 
         public void RemoveScene(long sceneNodeId)
@@ -81,17 +134,14 @@ namespace GameEntity
             }
         }
 
-        public void Update(float deltaTime, float unscaledDeltaTime)
+        public void Update(float deltaTime)
         {
-            foreach (var sceneNodeId in GetSceneNodeIdsSnapshot())
-            {
-                if (!_sceneBuckets.TryGetValue(sceneNodeId, out var sceneBucket))
-                {
-                    continue;
-                }
+            UpdatePhaseBuckets(UpdatePhase.Update, deltaTime);
+        }
 
-                UpdateSceneBucket(sceneBucket, deltaTime, unscaledDeltaTime);
-            }
+        public void FixedUpdate(float fixedDeltaTime)
+        {
+            UpdatePhaseBuckets(UpdatePhase.FixedUpdate, fixedDeltaTime);
         }
 
         public void Clear()
@@ -102,76 +152,127 @@ namespace GameEntity
             }
 
             _sceneBuckets.Clear();
-            _updateStrategy = null;
         }
 
-        private void UpdateSceneBucket(SceneScheduleBucket sceneBucket, float deltaTime, float unscaledDeltaTime)
+        public IReadOnlyList<SceneScheduleBucket> GetSceneBucketsSnapshot()
         {
-            foreach (var handle in sceneBucket.Update.Snapshot())
+            return new List<SceneScheduleBucket>(_sceneBuckets.Values);
+        }
+
+        private void UpdatePhaseBuckets(UpdatePhase phase, float deltaTime)
+        {
+            IReadOnlyList<UpdateWorkItem> workItems = CreatePassSnapshot(phase);
+            var processedHandles = new HashSet<EntityHandle>();
+            foreach (UpdateWorkItem workItem in workItems)
             {
-                if (!sceneBucket.Update.IsRegistered(handle))
+                if (!_sceneBuckets.TryGetValue(workItem.SceneNodeId, out var sceneBucket))
                 {
                     continue;
                 }
 
-                if (!_hierarchy.TryResolve(handle, out Entity entity) || entity is not IUpdate updateableEntity)
-                {
-                    sceneBucket.Update.Unregister(handle);
-                    continue;
-                }
-
-                if (!EnsureHandleInCurrentScene(sceneBucket, entity))
-                {
-                    continue;
-                }
-
-                if (!CanRun(entity) || !AreDependenciesReady(entity))
-                {
-                    continue;
-                }
-
-                IUpdateStrategy strategy = ResolveUpdateStrategy(entity);
-                if (strategy == null)
-                {
-                    RunUpdate(updateableEntity, unscaledDeltaTime);
-                    continue;
-                }
-
-                int updateCount = strategy.GetUpdateCount(entity, deltaTime, unscaledDeltaTime, out float singleDeltaTime);
-                for (int i = 0; i < updateCount; i++)
-                {
-                    RunUpdate(updateableEntity, singleDeltaTime);
-                }
+                UpdateEntity(sceneBucket, phase, workItem.Handle, deltaTime, processedHandles);
             }
 
-            sceneBucket.Update.Compact();
+            foreach (SceneScheduleBucket sceneBucket in _sceneBuckets.Values)
+            {
+                GetUpdateBucket(sceneBucket, phase).Compact();
+            }
         }
 
-        private bool EnsureHandleInCurrentScene(SceneScheduleBucket currentBucket, Entity entity)
+        private void UpdateEntity(
+            SceneScheduleBucket sceneBucket,
+            UpdatePhase phase,
+            EntityHandle handle,
+            float deltaTime,
+            HashSet<EntityHandle> processedHandles)
+        {
+            EntityUpdateBucket updateBucket = GetUpdateBucket(sceneBucket, phase);
+            if (!updateBucket.IsRegistered(handle))
+            {
+                return;
+            }
+
+            if (!_hierarchy.TryResolve(handle, out Entity entity) || !ParticipatesInPhase(entity, phase))
+            {
+                updateBucket.Unregister(handle);
+                return;
+            }
+
+            if (!EnsureHandleInCurrentScene(sceneBucket, entity, phase))
+            {
+                return;
+            }
+
+            if (!processedHandles.Add(handle) || !CanUpdate(entity))
+            {
+                return;
+            }
+
+            if (!EnsureStarted(entity, handle))
+            {
+                return;
+            }
+
+            // Start can destroy, move, or disable the current lifetime.
+            if (!updateBucket.IsRegistered(handle) ||
+                !_hierarchy.TryResolve(handle, out entity) ||
+                !EnsureHandleInCurrentScene(sceneBucket, entity, phase))
+            {
+                return;
+            }
+
+            if (!CanUpdate(entity))
+            {
+                return;
+            }
+
+            if (phase == UpdatePhase.FixedUpdate)
+            {
+                if (entity is not IFixedUpdate fixedUpdateEntity)
+                {
+                    updateBucket.Unregister(handle);
+                    return;
+                }
+
+                RunFixedUpdate(fixedUpdateEntity, deltaTime);
+                return;
+            }
+
+            if (entity is not IUpdate updateEntity)
+            {
+                updateBucket.Unregister(handle);
+                return;
+            }
+
+            if (!TryGetUpdateDeltaTime(entity, updateBucket, handle, deltaTime, out float updateDeltaTime))
+            {
+                return;
+            }
+
+            RunUpdate(updateEntity, updateDeltaTime);
+        }
+
+        private bool EnsureHandleInCurrentScene(SceneScheduleBucket currentSceneBucket, Entity entity, UpdatePhase phase)
         {
             long currentSceneNodeId = _hierarchy.GetSceneNodeId(entity);
-            if (currentSceneNodeId == currentBucket.SceneNodeId)
+            if (currentSceneNodeId == currentSceneBucket.SceneNodeId)
             {
                 return true;
             }
 
-            currentBucket.Update.Unregister(entity.Handle);
+            EntityUpdateBucket currentUpdateBucket = GetUpdateBucket(currentSceneBucket, phase);
+            if (!currentUpdateBucket.TryUnregister(entity.Handle, out float elapsedTime))
+            {
+                return false;
+            }
+
             if (currentSceneNodeId != 0)
             {
-                GetOrCreateSceneBucket(currentSceneNodeId).Update.Register(entity.Handle);
+                EntityUpdateBucket newUpdateBucket = GetUpdateBucket(GetOrCreateSceneBucket(currentSceneNodeId), phase);
+                newUpdateBucket.Register(entity.Handle, elapsedTime);
             }
 
             return false;
-        }
-
-        private IUpdateStrategy ResolveUpdateStrategy(Entity entity)
-        {
-            if (entity is IHasUpdateStrategy hasStrategy)
-            {
-                return hasStrategy.GetUpdateStrategy();
-            }
-
-            return _updateStrategy;
         }
 
         private SceneScheduleBucket GetOrCreateSceneBucket(long sceneNodeId)
@@ -190,21 +291,105 @@ namespace GameEntity
             return new List<long>(_sceneBuckets.Keys);
         }
 
-        private static void MoveIfRegistered(SceneScheduleBucket oldBucket, SceneScheduleBucket newBucket, EntityHandle handle)
+        private IReadOnlyList<UpdateWorkItem> CreatePassSnapshot(UpdatePhase phase)
         {
-            if (!oldBucket.Update.Unregister(handle))
+            var workItems = new List<UpdateWorkItem>();
+            foreach (long sceneNodeId in GetSceneNodeIdsSnapshot())
+            {
+                if (!_sceneBuckets.TryGetValue(sceneNodeId, out var sceneBucket))
+                {
+                    continue;
+                }
+
+                foreach (EntityHandle handle in GetUpdateBucket(sceneBucket, phase).Snapshot())
+                {
+                    workItems.Add(new UpdateWorkItem(sceneNodeId, handle));
+                }
+            }
+
+            return workItems;
+        }
+
+        private static EntityUpdateBucket GetUpdateBucket(SceneScheduleBucket sceneBucket, UpdatePhase phase)
+        {
+            return phase == UpdatePhase.FixedUpdate ? sceneBucket.FixedUpdate : sceneBucket.Update;
+        }
+
+        private static bool ParticipatesInPhase(Entity entity, UpdatePhase phase)
+        {
+            if (phase == UpdatePhase.FixedUpdate)
+            {
+                return entity is IFixedUpdate;
+            }
+
+            return entity is IStart || entity is IUpdate;
+        }
+
+        private static void MoveIfRegistered(
+            EntityUpdateBucket oldBucket,
+            EntityUpdateBucket newBucket,
+            EntityHandle handle)
+        {
+            if (!oldBucket.TryUnregister(handle, out float elapsedTime))
             {
                 return;
             }
 
-            newBucket.Update.Register(handle);
+            newBucket.Register(handle, elapsedTime);
         }
 
-        private static void RunUpdate(IUpdate updateableEntity, float deltaTime)
+        private static bool TryGetUpdateDeltaTime(
+            Entity entity,
+            EntityUpdateBucket bucket,
+            EntityHandle handle,
+            float deltaTime,
+            out float updateDeltaTime)
+        {
+            updateDeltaTime = 0f;
+            if (!bucket.TryAccumulate(handle, deltaTime, out float elapsedTime))
+            {
+                return false;
+            }
+
+            float updateInterval = 0f;
+            if (entity is IEntityUpdateInterval updateIntervalState)
+            {
+                try
+                {
+                    updateInterval = updateIntervalState.UpdateInterval;
+                }
+                catch (Exception e)
+                {
+                    bucket.ResetElapsed(handle);
+                    Log.Error($"Update interval error: {entity.GetType().FullName}: {e}");
+                    return false;
+                }
+
+                if (float.IsNaN(updateInterval) || float.IsInfinity(updateInterval) || updateInterval < 0f)
+                {
+                    bucket.ResetElapsed(handle);
+                    Log.Error(
+                        $"Invalid UpdateInterval on {entity.GetType().FullName}: {updateInterval}. " +
+                        "The value must be finite and greater than or equal to zero.");
+                    return false;
+                }
+            }
+
+            if (updateInterval > 0f && elapsedTime < updateInterval)
+            {
+                return false;
+            }
+
+            bucket.ResetElapsed(handle);
+            updateDeltaTime = elapsedTime;
+            return true;
+        }
+
+        private static void RunUpdate(IUpdate updateEntity, float deltaTime)
         {
             try
             {
-                updateableEntity.Update(deltaTime);
+                updateEntity.Update(deltaTime);
             }
             catch (Exception e)
             {
@@ -212,19 +397,120 @@ namespace GameEntity
             }
         }
 
-        private static bool CanRun(Entity entity)
+        private static void RunFixedUpdate(IFixedUpdate fixedUpdateEntity, float fixedDeltaTime)
         {
-            return entity is not IEntityLifecycleGate gate || gate.CanRun;
+            try
+            {
+                fixedUpdateEntity.FixedUpdate(fixedDeltaTime);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"FixedUpdate error: {e}");
+            }
         }
 
-        private bool AreDependenciesReady(Entity entity)
+        private static bool CanUpdate(Entity entity)
         {
-            if (entity is not IDependentComponent)
+            if (entity is IEntityUpdateState state)
+            {
+                try
+                {
+                    if (!state.IsUpdateEnabled)
+                    {
+                        return false;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"Update state error: {entity.GetType().FullName} ({entity.Handle}): {e}");
+                    return false;
+                }
+            }
+
+            try
+            {
+                UpdateRequirementResult requirementResult = UpdateRequirementResolver.Check(entity);
+                if (requirementResult.BlockReason == UpdateRequirementBlockReason.ComponentStateError)
+                {
+                    string requirementName = requirementResult.RequirementType?.FullName ?? "-";
+                    Log.Error(
+                        $"Update requirement state error: {entity.GetType().FullName} ({entity.Handle}) " +
+                        $"requires {requirementName}: {requirementResult.Exception}");
+                }
+
+                return requirementResult.CanUpdate;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"Update requirement error: {entity.GetType().FullName} ({entity.Handle}): {e}");
+                return false;
+            }
+        }
+
+        private bool EnsureStarted(Entity entity, EntityHandle originalHandle)
+        {
+            if (entity is not IStart startEntity)
             {
                 return true;
             }
 
-            return _hierarchy.World.Dependencies.RefreshDependencyStatus(entity);
+            long originalInstanceId = entity.InstanceId;
+            if (!TryGetSameLifetime(entity, originalHandle, originalInstanceId, out var record))
+            {
+                return false;
+            }
+
+            if (record.IsStartFaulted)
+            {
+                Unregister(originalHandle);
+                return false;
+            }
+
+            if (record.IsStarted)
+            {
+                return true;
+            }
+
+            try
+            {
+                startEntity.Start();
+            }
+            catch (Exception e)
+            {
+                if (TryGetSameLifetime(entity, originalHandle, originalInstanceId, out record))
+                {
+                    _hierarchy.Nodes.SetStartFaulted(record.NodeId);
+                    Unregister(originalHandle);
+                }
+
+                Log.Error($"Start error: {entity.GetType().FullName}: {e}");
+                return false;
+            }
+
+            if (!TryGetSameLifetime(entity, originalHandle, originalInstanceId, out record))
+            {
+                return false;
+            }
+
+            _hierarchy.Nodes.SetStarted(record.NodeId);
+            return true;
+        }
+
+        private bool TryGetSameLifetime(
+            Entity entity,
+            EntityHandle originalHandle,
+            long originalInstanceId,
+            out EntityNode record)
+        {
+            record = default;
+            if (entity == null || entity.Handle != originalHandle || entity.InstanceId != originalInstanceId ||
+                !_hierarchy.Nodes.TryGetNode(originalHandle, out record) || record.InstanceId != originalInstanceId ||
+                !_hierarchy.TryResolve(originalHandle, out Entity resolved))
+            {
+                return false;
+            }
+
+            return ReferenceEquals(entity, resolved);
         }
     }
 }

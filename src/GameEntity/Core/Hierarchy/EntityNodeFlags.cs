@@ -8,5 +8,7 @@ namespace GameEntity
         None = 0,
         Alive = 1,
         Destroying = 1 << 1,
+        Started = 1 << 2,
+        StartFaulted = 1 << 3,
     }
 }

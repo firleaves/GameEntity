@@ -34,6 +34,8 @@ namespace GameEntity
                 record.Kind,
                 record.IsAlive,
                 record.IsDestroying,
+                record.IsStarted,
+                record.IsStartFaulted,
                 entity?.GetType().FullName,
                 entity?.GetViewName());
         }

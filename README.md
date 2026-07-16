@@ -2,6 +2,10 @@
 
 GameEntity is a lightweight, engine-agnostic entity and lifecycle framework for C#.
 
+GameEntity uses a single-World runtime model: one process has one active `World.Instance`. Multiple gameplay sessions, matches, or Unity scenes are represented by multiple GameEntity scenes inside that World, not by multiple World instances.
+
+中文使用文档与模块化知识库：[`docs/knowledge-base/README.md`](docs/knowledge-base/README.md)。
+
 The repository contains two package surfaces:
 
 - `GameEntity`: the pure C# core library.

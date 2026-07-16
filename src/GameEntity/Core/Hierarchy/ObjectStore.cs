@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace GameEntity
 {
@@ -24,6 +25,11 @@ namespace GameEntity
         public void Remove(long nodeId)
         {
             _objects.Remove(nodeId);
+        }
+
+        public IReadOnlyList<KeyValuePair<long, Entity>> GetAllEntries()
+        {
+            return _objects.ToList();
         }
 
         public void Clear()

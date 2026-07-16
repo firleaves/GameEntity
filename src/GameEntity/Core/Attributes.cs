@@ -3,14 +3,12 @@ using System;
 namespace GameEntity
 {
     /// <summary>
-    /// 子实体的父级实体类型约束
-    /// 父级实体类型唯一的 标记指定父级实体类型[ChildOf(typeof(parentType)]
-    /// 不唯一则标记[ChildOf]
+    /// 声明 Entity 只能作为 Child 挂接；指定父类型时，owner 必须是该类型或其派生类型。
     /// </summary>
     [AttributeUsage(AttributeTargets.Class)]
-    public class ChildOfAttribute : Attribute
+    public sealed class ChildOfAttribute : Attribute
     {
-        public Type Type { get; private set; }
+        public Type Type { get; }
 
         public ChildOfAttribute(Type type = null)
         {
@@ -18,15 +16,4 @@ namespace GameEntity
         }
     }
 
-    // 标记一个实体可以作为另一个实体的组件
-    [AttributeUsage(AttributeTargets.Class)]
-    public class ComponentOfAttribute : Attribute
-    {
-        public Type ComponentType { get; private set; }
-
-        public ComponentOfAttribute(Type componentType)
-        {
-            ComponentType = componentType;
-        }
-    }
 }

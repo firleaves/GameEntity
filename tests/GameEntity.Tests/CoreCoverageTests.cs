@@ -32,9 +32,9 @@ namespace GameEntity.Tests
         public void WorldInstance_ShouldCreateCoreServicesWithoutManualSingletonRegistration()
         {
             var scene = (TestScene)World.Instance.AddScene("p0-world-services", new TestScene("p0-world-services"));
-            TickProbeEntity entity = scene.AddChild<TickProbeEntity>();
+            UpdateProbeEntity entity = scene.AddChild<UpdateProbeEntity>();
 
-            World.Instance.Tick(0.1f, 0.1f);
+            World.Instance.Update(0.1f);
 
             Assert.True(scene.Handle.IsValid);
             Assert.NotEqual(0, scene.Id);
@@ -60,54 +60,74 @@ namespace GameEntity.Tests
         }
 
         [Fact]
-        public void IHasUpdateStrategy_ShouldControlEntitySchedulerUpdateCount()
+        public void IEntityUpdateInterval_ShouldThrottleUpdateAndPassAccumulatedTime()
         {
-            TestScene scene = CreateScene("p0-strategy");
-            StrategyProbeEntity entity = scene.AddChild<StrategyProbeEntity>();
+            TestScene scene = CreateScene("p0-update-rate");
+            RateLimitedProbeEntity entity = scene.AddChild<RateLimitedProbeEntity>();
 
-            World.Instance.Tick(0.3f, 9f);
+            World.Instance.Update(0.1f);
+            World.Instance.Update(0.1f);
 
-            Assert.Equal(3, entity.UpdateCount);
-            Assert.Equal(0.1f, entity.LastDeltaTime, precision: 5);
+            Assert.Equal(1, entity.StartCount);
+            Assert.Equal(0, entity.UpdateCount);
+
+            World.Instance.Update(0.1f);
+
+            Assert.Equal(1, entity.UpdateCount);
+            Assert.Equal(0.3f, entity.LastDeltaTime, precision: 5);
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void IEntityLifecycleGate_ShouldBlockAndAllowUpdate()
+        public void IEntityUpdateState_ShouldBlockAndAllowUpdate()
         {
-            TestScene scene = CreateScene("p0-gate");
-            GateProbeEntity entity = scene.AddChild<GateProbeEntity>();
+            TestScene scene = CreateScene("p0-update-state");
+            UpdateStateProbeEntity entity = scene.AddChild<UpdateStateProbeEntity>();
 
-            World.Instance.Tick(0.1f, 0.1f);
+            World.Instance.Update(0.1f);
             Assert.Equal(0, entity.UpdateCount);
 
-            entity.CanRun = true;
-            World.Instance.Tick(0.1f, 0.1f);
+            entity.IsUpdateEnabled = true;
+            World.Instance.Update(0.1f);
 
             Assert.Equal(1, entity.UpdateCount);
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 
         [Fact]
-        public void IDependentComponent_ShouldGateSchedulerUntilDependencyIsReady()
+        public void IEntityReadyState_ShouldNotControlEntityOwnUpdate()
+        {
+            TestScene scene = CreateScene("p0-ready-state-own-update");
+            ReadyStateUpdateProbeEntity entity = scene.AddChild<ReadyStateUpdateProbeEntity>();
+
+            Assert.False(entity.IsReady);
+
+            World.Instance.Update(0.1f);
+
+            Assert.Equal(1, entity.UpdateCount);
+            Assert.True(World.Instance.ValidateEntities().IsValid);
+        }
+
+        [Fact]
+        public void RequireForUpdate_ShouldWaitUntilDependencyIsReady()
         {
             TestScene scene = CreateScene("p0-dependent");
             ProbeEntity owner = scene.AddChild<ProbeEntity>();
-            DependentTickComponent dependent = owner.AddComponent<DependentTickComponent>();
+            DependentUpdateComponent dependent = owner.AddComponent<DependentUpdateComponent>();
 
-            World.Instance.Tick(0.1f, 0.1f);
+            World.Instance.Update(0.1f);
             Assert.Equal(0, dependent.UpdateCount);
-            Assert.False(dependent.AreAllDependenciesMet);
+            Assert.Equal(0, dependent.StartCount);
 
             RequiredComponent required = owner.AddComponent<RequiredComponent>();
-            World.Instance.Tick(0.1f, 0.1f);
+            World.Instance.Update(0.1f);
             Assert.Equal(1, dependent.UpdateCount);
-            Assert.True(dependent.AreAllDependenciesMet);
+            Assert.Equal(1, dependent.StartCount);
 
             required.IsReady = false;
-            World.Instance.Tick(0.1f, 0.1f);
+            World.Instance.Update(0.1f);
             Assert.Equal(1, dependent.UpdateCount);
-            Assert.False(dependent.AreAllDependenciesMet);
+            Assert.Equal(1, dependent.StartCount);
             Assert.True(World.Instance.ValidateEntities().IsValid);
         }
 

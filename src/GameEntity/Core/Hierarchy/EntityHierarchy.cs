@@ -39,7 +39,6 @@ namespace GameEntity
                 return;
             }
 
-            scene.SetSceneFromHierarchy(scene);
             var handle = Nodes.CreateNode(scene, EntityNodeKind.SceneRoot, 0, 0, 0);
             var record = Nodes.GetNode(handle.NodeId);
             record.SceneNodeId = handle.NodeId;
@@ -48,11 +47,13 @@ namespace GameEntity
             scene.AssignHierarchyHandle(this, handle);
             Objects.Add(handle, scene);
             Scenes.Register(scene.Name, handle.NodeId);
+            scene.SetSceneFromHierarchy(scene);
         }
 
         public void AttachChild(Entity owner, Entity child)
         {
             ValidateOwner(owner, child);
+            ValidateChildPlacement(owner, child.GetType());
 
             var ownerRecord = RequireNode(owner);
             var oldParent = GetOwner(child);
@@ -81,12 +82,16 @@ namespace GameEntity
 
             child.IsComponent = false;
             PropagateScene(child, ownerRecord.SceneNodeId, owner.SceneRoot, previousSceneNodeId);
-            EntityTreeEventHub.NotifyEntityParentChanged(child, oldParent, owner);
+            if (child.IsTreePublished)
+            {
+                _world.EntityEvents.NotifyEntityParentChanged(child, oldParent, owner);
+            }
         }
 
         public void AttachComponent(Entity owner, Entity component)
         {
             ValidateOwner(owner, component);
+            ValidateComponentPlacement(component.GetType());
 
             var ownerRecord = RequireNode(owner);
             var type = component.GetType();
@@ -118,7 +123,10 @@ namespace GameEntity
 
             component.IsComponent = true;
             PropagateScene(component, ownerRecord.SceneNodeId, owner.SceneRoot, previousSceneNodeId);
-            EntityTreeEventHub.NotifyEntityParentChanged(component, oldParent, owner);
+            if (component.IsTreePublished)
+            {
+                _world.EntityEvents.NotifyEntityParentChanged(component, oldParent, owner);
+            }
         }
 
         public Entity GetOwner(Entity entity)
@@ -216,21 +224,7 @@ namespace GameEntity
 
         public K GetComponent<K>(Entity owner) where K : Entity
         {
-            var exact = GetComponent(owner, typeof(K));
-            if (exact != null)
-            {
-                return (K)exact;
-            }
-
-            foreach (var component in GetAllComponents(owner))
-            {
-                if (component is K derivedMatch)
-                {
-                    return derivedMatch;
-                }
-            }
-
-            return null;
+            return GetComponent(owner, typeof(K)) as K;
         }
 
         public Entity GetComponent(Entity owner, Type type)
@@ -393,6 +387,31 @@ namespace GameEntity
             return new EntityValidator(this).Validate();
         }
 
+        public IReadOnlyList<Entity> GetPublishedEntitiesParentFirst()
+        {
+            return Nodes.GetAllNodes()
+                .OrderBy(GetHierarchyDepth)
+                .ThenBy(record => record.NodeId)
+                .Select(record => Objects.TryGet(record.NodeId, out var entity) ? entity : null)
+                .Where(entity => entity != null && entity.IsTreePublished && !entity.IsDestroyed)
+                .ToList();
+        }
+
+        public int GetHierarchyDepth(Entity entity)
+        {
+            return TryGetNode(entity, out var record) ? GetHierarchyDepth(record) : int.MaxValue;
+        }
+
+        public void ValidateChildPlacement(Entity owner, Type entityType)
+        {
+            EntityPlacementMetadata.ValidateChild(owner, entityType);
+        }
+
+        public void ValidateComponentPlacement(Type entityType)
+        {
+            EntityPlacementMetadata.ValidateComponent(entityType);
+        }
+
         public void Dispose()
         {
             var sceneRoots = Nodes.GetSceneRoots()
@@ -400,93 +419,101 @@ namespace GameEntity
                 .Where(scene => scene != null)
                 .ToList();
 
-            foreach (var scene in sceneRoots)
+            try
             {
-                DestroySubtree(scene);
+                foreach (var scene in sceneRoots)
+                {
+                    DestroySubtree(scene);
+                }
             }
-
-            Scheduler.Clear();
-            Scenes.Clear();
-            Objects.Clear();
-            Nodes.Clear();
+            finally
+            {
+                Scheduler.Clear();
+                Scenes.Clear();
+                Objects.Clear();
+                Nodes.Clear();
+            }
         }
 
         private void DestroySubtreeCore(Entity entity, EntityNode record)
         {
-            Nodes.SetDestroying(record.NodeId);
-            record = Nodes.GetNode(record.NodeId);
-
-            var componentRemoveContext = TryBeginComponentRemoval(entity, record);
-            if (record.Kind == EntityNodeKind.ChildEntity)
+            EntityHandle handle = record.Handle;
+            EntityNodeKind kind = record.Kind;
+            try
             {
-                Nodes.DetachFromOwner(record);
+                Nodes.SetDestroying(record.NodeId);
+                record = Nodes.GetNode(record.NodeId);
+
+                TryBeginComponentRemoval(entity, record);
+                if (record.Kind == EntityNodeKind.ChildEntity)
+                {
+                    Nodes.DetachFromOwner(record);
+                }
+
+                entity.BeginDestroyFromHierarchy();
+                Nodes.SetInstanceId(record.NodeId, entity.InstanceId);
+
+                foreach (var child in GetAllChildren(entity).ToList())
+                {
+                    DestroySubtree(child);
+                }
+
+                foreach (var component in GetAllComponents(entity).ToList())
+                {
+                    DestroySubtree(component);
+                }
+
+                entity.DestroySelfFromHierarchy();
             }
-
-            entity.BeginDestroyFromHierarchy();
-            Nodes.SetInstanceId(record.NodeId, entity.InstanceId);
-
-            foreach (var child in GetAllChildren(entity).ToList())
+            finally
             {
-                DestroySubtree(child);
-            }
+                if (kind == EntityNodeKind.SceneRoot)
+                {
+                    Scheduler.RemoveScene(record.NodeId);
+                    Scenes.Unregister(record.NodeId);
+                    if (entity is Scene scene)
+                    {
+                        _world.UnregisterScene(scene);
+                    }
+                }
+                else
+                {
+                    Scheduler.Unregister(handle);
+                }
 
-            foreach (var component in GetAllComponents(entity).ToList())
-            {
-                DestroySubtree(component);
-            }
-
-            entity.DestroySelfFromHierarchy();
-
-            if (record.Kind == EntityNodeKind.SceneRoot)
-            {
-                Scheduler.RemoveScene(record.NodeId);
-                Scenes.Unregister(record.NodeId);
-                _world.UnregisterScene((Scene)entity);
-            }
-            else
-            {
-                Scheduler.Unregister(record.Handle);
-            }
-
-            Objects.Remove(record.NodeId);
-            Nodes.RemoveNode(record.NodeId);
-            entity.ClearHierarchyHandle();
-
-            if (componentRemoveContext.ShouldNotify)
-            {
-                _world.Dependencies.NotifyRemoveComponent(componentRemoveContext.Owner, componentRemoveContext.ComponentType);
+                Objects.Remove(record.NodeId);
+                Nodes.RemoveNode(record.NodeId);
+                entity.ClearHierarchyHandle();
             }
         }
 
-        private ComponentRemoveContext TryBeginComponentRemoval(Entity entity, EntityNode record)
+        private void TryBeginComponentRemoval(Entity entity, EntityNode record)
         {
             if (record.Kind != EntityNodeKind.ComponentEntity || record.OwnerNodeId == 0)
             {
-                return ComponentRemoveContext.None;
+                return;
             }
 
             if (!Objects.TryGet(record.OwnerNodeId, out var owner) || owner.IsDestroyed)
             {
                 Nodes.DetachFromOwner(record);
-                return ComponentRemoveContext.None;
+                return;
             }
 
             if (Nodes.TryGetNode(record.OwnerNodeId, out var ownerRecord) && ownerRecord.IsDestroying)
             {
                 Nodes.DetachFromOwner(record);
-                return ComponentRemoveContext.None;
+                return;
             }
 
             bool isIndexed = Nodes.TryGetComponent(record.OwnerNodeId, record.ComponentTypeId, out var indexedNodeId) &&
                              indexedNodeId == record.NodeId;
             if (!isIndexed)
             {
-                return ComponentRemoveContext.None;
+                return;
             }
 
-            UnregisterDependentComponent(entity);
             Nodes.DetachFromOwner(record);
-            return new ComponentRemoveContext(owner, entity.GetType(), true);
         }
 
         private EntityNode EnsureNode(Entity entity, EntityNodeKind kind, long ownerNodeId, long sceneNodeId, long componentTypeId)
@@ -593,19 +620,23 @@ namespace GameEntity
             }
         }
 
-        private void UnregisterDependentComponent(Entity component)
-        {
-            var registry = _world.Dependencies;
-            if (component is IDependentComponent ||
-                component.GetType().GetCustomAttributes(typeof(DependsOnAttribute), true).Length > 0)
-            {
-                registry.UnregisterDependentComponent(component);
-            }
-        }
-
         private long TryGetNodeId(Entity entity)
         {
             return TryGetNode(entity, out var record) ? record.NodeId : 0;
+        }
+
+        private int GetHierarchyDepth(EntityNode record)
+        {
+            int depth = 0;
+            var visited = new HashSet<long>();
+            long ownerNodeId = record.OwnerNodeId;
+            while (ownerNodeId != 0 && visited.Add(ownerNodeId) && Nodes.TryGetNode(ownerNodeId, out var ownerRecord))
+            {
+                depth++;
+                ownerNodeId = ownerRecord.OwnerNodeId;
+            }
+
+            return depth;
         }
 
         private bool WouldCreateOwnerCycle(Entity owner, long childNodeId)
@@ -640,22 +671,5 @@ namespace GameEntity
             return false;
         }
 
-        private readonly struct ComponentRemoveContext
-        {
-            public static readonly ComponentRemoveContext None = new ComponentRemoveContext(null, null, false);
-
-            public ComponentRemoveContext(Entity owner, Type componentType, bool shouldNotify)
-            {
-                Owner = owner;
-                ComponentType = componentType;
-                ShouldNotify = shouldNotify;
-            }
-
-            public Entity Owner { get; }
-
-            public Type ComponentType { get; }
-
-            public bool ShouldNotify { get; }
-        }
     }
 }

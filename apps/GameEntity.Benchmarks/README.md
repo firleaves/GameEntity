@@ -11,7 +11,7 @@ dotnet run -c Release --project "apps/GameEntity.Benchmarks/GameEntity.Benchmark
 开发中只跑一个场景可以加 `--filter`，例如：
 
 ```bash
-dotnet run -c Release --project "apps/GameEntity.Benchmarks/GameEntity.Benchmarks.csproj" -- --filter "*TickRegisteredUpdates*"
+dotnet run -c Release --project "apps/GameEntity.Benchmarks/GameEntity.Benchmarks.csproj" -- --filter "*UpdateRegisteredEntities*"
 ```
 
 BenchmarkDotNet 的详细结果会输出到：
@@ -27,7 +27,7 @@ BenchmarkDotNet.Artifacts/results/
 - `QueryComponents`：批量组件查询，覆盖 component index 读取。
 - `ResolveHandles`：批量 `EntityHandle` 解析。
 - `ReparentAcrossScenes`：跨 scene 迁移 subtree，覆盖 scene 分区传播。
-- `TickRegisteredUpdates`：驱动已注册 `IUpdate` 实体。
+- `UpdateRegisteredEntities`：驱动已注册 `IUpdate` 实体。
 - `CaptureSnapshot` / `ValidateHierarchy`：diagnostics 快照与结构校验。
 
 ## 对比建议
