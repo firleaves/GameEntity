@@ -75,7 +75,7 @@ namespace GameEntity.Unity.Framework
             }
         }
 
-        public void Tick(float deltaTime)
+        public void Update(float deltaTime)
         {
         }
 

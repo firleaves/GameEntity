@@ -46,8 +46,11 @@ namespace GameEntity.Unity.Framework
             }
 
             var runtimeOptions = options != null ? options.Clone() : FrameworkOptions.CreateDefault();
-            _yooAssetBootstrap = new YooAssetBootstrap();
-            await _yooAssetBootstrap.InitializeAsync(runtimeOptions.YooAsset, ct);
+            if (RequiresYooAsset(runtimeOptions))
+            {
+                _yooAssetBootstrap = new YooAssetBootstrap();
+                await _yooAssetBootstrap.InitializeAsync(runtimeOptions.YooAsset, ct);
+            }
 
             if (runtimeOptions.HasFeature(FrameworkFeatures.Asset))
             {
@@ -135,16 +138,12 @@ namespace GameEntity.Unity.Framework
 
             if (runtimeOptions.HasFeature(FrameworkFeatures.UI))
             {
-                if (runtimeOptions.UI != null && runtimeOptions.UI.UseInstancePool && InstancePool == null)
-                {
-                    throw new FrameworkException(
-                        $"Framework 功能 {FrameworkFeatures.UI} 需要先启用 {FrameworkFeatures.InstancePool}，或关闭 UIOptions.UseInstancePool。");
-                }
+                var instancePool = RequireService(InstancePool, FrameworkFeatures.InstancePool, FrameworkFeatures.UI);
 
                 var uiSystem = AddChild<UISystemEntity, UISystemDependencies>(new UISystemDependencies
                 {
                     Options = runtimeOptions.UI,
-                    InstancePool = InstancePool,
+                    InstancePool = instancePool,
                     FrameworkRoot = frameworkRoot,
                     AutoCreateEventSystem = runtimeOptions.AutoCreateEventSystem
                 });
@@ -209,7 +208,18 @@ namespace GameEntity.Unity.Framework
                 throw new FrameworkException($"注册 Framework 服务失败：{typeof(T).Name} 不能为空。");
             }
 
-            _services[typeof(T)] = service;
+            var serviceType = typeof(T);
+            if (_services.TryGetValue(serviceType, out var existing))
+            {
+                if (ReferenceEquals(existing, service))
+                {
+                    return;
+                }
+
+                throw new FrameworkException($"Framework 服务已注册，不能重复覆盖：{serviceType.Name}");
+            }
+
+            _services.Add(serviceType, service);
         }
 
         private static T RequireService<T>(T service, FrameworkFeatures required, FrameworkFeatures current)
@@ -220,6 +230,14 @@ namespace GameEntity.Unity.Framework
             }
 
             return service;
+        }
+
+        private static bool RequiresYooAsset(FrameworkOptions options)
+        {
+            const FrameworkFeatures yooAssetFeatures = FrameworkFeatures.Asset
+                | FrameworkFeatures.ResourceUpdate
+                | FrameworkFeatures.Scene;
+            return options != null && (options.Features & yooAssetFeatures) != 0;
         }
 
         private void InstallExtensions(
@@ -256,6 +274,7 @@ namespace GameEntity.Unity.Framework
 
             if (ProcedureSystem is Entity procedureEntity && !procedureEntity.IsDestroyed)
             {
+                await ProcedureSystem.StopAsync().AttachExternalCancellation(ct);
                 procedureEntity.Destroy();
             }
 
@@ -325,6 +344,7 @@ namespace GameEntity.Unity.Framework
             }
 
             DestroyRemainingChildren();
+            DisposeNonEntityServices();
 
             AssetPool = null;
             ResourceUpdateSystem = null;
@@ -371,6 +391,7 @@ namespace GameEntity.Unity.Framework
             ProcedureSystem = null;
             NetworkSystem = null;
             _yooAssetBootstrap = null;
+            DisposeNonEntityServices();
             _services.Clear();
             _initialized = false;
             base.OnDestroy();
@@ -392,6 +413,50 @@ namespace GameEntity.Unity.Framework
                 {
                     child.Destroy();
                 }
+            }
+        }
+
+        private void DisposeNonEntityServices()
+        {
+            if (_services.Count == 0)
+            {
+                return;
+            }
+
+            var disposed = new List<object>();
+            foreach (var pair in _services)
+            {
+                var service = pair.Value;
+                if (service == null || service is Entity || !(service is IDisposable disposable))
+                {
+                    continue;
+                }
+
+                var alreadyDisposed = false;
+                for (var i = 0; i < disposed.Count; i++)
+                {
+                    if (ReferenceEquals(disposed[i], service))
+                    {
+                        alreadyDisposed = true;
+                        break;
+                    }
+                }
+
+                if (alreadyDisposed)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                }
+
+                disposed.Add(service);
             }
         }
 

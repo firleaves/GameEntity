@@ -34,6 +34,35 @@ namespace GameEntity.Unity.Tests
 
             Assert.IsNull(runner.Registry.GetView(entity));
             Object.Destroy(root);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Runner_ReplaysExistingEntityTree_WhenCreatedAfterWorldContent()
+        {
+            var scene = (UnitySmokeScene)World.Instance.AddScene(
+                "ExistingWorldScene",
+                new UnitySmokeScene("ExistingWorldScene"));
+            var entity = scene.AddChild<UnitySmokeEntity>();
+            var component = entity.AddComponent<UnitySmokeComponent>();
+
+            GameObject root = new GameObject("GameEntity.Unity.LateRunnerRoot");
+            GameEntityRunner runner = root.AddComponent<GameEntityRunner>();
+
+            yield return null;
+
+            ComponentView sceneView = runner.Registry.GetView(scene);
+            ComponentView entityView = runner.Registry.GetView(entity);
+            ComponentView componentView = runner.Registry.GetView(component);
+
+            Assert.NotNull(sceneView);
+            Assert.NotNull(entityView);
+            Assert.NotNull(componentView);
+            Assert.AreSame(sceneView.transform, entityView.transform.parent);
+            Assert.AreSame(entityView.transform, componentView.transform.parent);
+
+            Object.Destroy(root);
+            yield return null;
         }
 
         [UnityTest]
@@ -53,6 +82,27 @@ namespace GameEntity.Unity.Tests
             Assert.AreSame(scene, World.Instance.GetScene("ExternalWorldScene"));
             scene.Destroy();
             World.Instance.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator Runner_DrivesFixedUpdateAtConfiguredRate()
+        {
+            GameObject root = new GameObject("GameEntity.Unity.FixedUpdateRoot");
+            GameEntityRunner runner = root.AddComponent<GameEntityRunner>();
+
+            yield return null;
+
+            var scene = (UnitySmokeScene)World.Instance.AddScene("FixedUpdateScene", new UnitySmokeScene("FixedUpdateScene"));
+            var entity = scene.AddChild<UnityFixedSmokeEntity>();
+
+            yield return new WaitForSecondsRealtime(0.1f);
+
+            Assert.Greater(entity.FixedUpdateCount, 0);
+            Assert.AreEqual(1f / runner.FixedUpdatesPerSecond, entity.LastFixedDeltaTime, 0.00001f);
+            Assert.That(runner.FixedInterpolationAlpha, Is.InRange(0f, 1f));
+
+            Object.Destroy(root);
+            yield return null;
         }
 
         [UnityTest]
@@ -130,6 +180,23 @@ namespace GameEntity.Unity.Tests
         {
             public void Awake()
             {
+            }
+        }
+
+        private sealed class UnityFixedSmokeEntity : Entity, IAwake, IFixedUpdate
+        {
+            public int FixedUpdateCount { get; private set; }
+
+            public float LastFixedDeltaTime { get; private set; }
+
+            public void Awake()
+            {
+            }
+
+            public void FixedUpdate(float fixedDeltaTime)
+            {
+                FixedUpdateCount++;
+                LastFixedDeltaTime = fixedDeltaTime;
             }
         }
     }

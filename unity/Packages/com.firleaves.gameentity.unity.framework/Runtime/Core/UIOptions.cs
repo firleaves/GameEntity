@@ -8,19 +8,13 @@ namespace GameEntity.Unity.Framework
     {
         public Transform UIRoot;
         public string DefaultGroup = "Default";
-        public int GroupDepthStep = 1000;
-        public bool AutoCreateCanvas = true;
-        public bool UseInstancePool = true;
 
         public UIOptions Clone()
         {
             return new UIOptions
             {
                 UIRoot = UIRoot,
-                DefaultGroup = DefaultGroup,
-                GroupDepthStep = GroupDepthStep,
-                AutoCreateCanvas = AutoCreateCanvas,
-                UseInstancePool = UseInstancePool
+                DefaultGroup = DefaultGroup
             };
         }
 

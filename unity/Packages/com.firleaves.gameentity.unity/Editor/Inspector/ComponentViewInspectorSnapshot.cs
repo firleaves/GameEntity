@@ -201,28 +201,89 @@ namespace GameEntity.Unity.Editor
                 tags.Add(new InterfaceTag("IAwake"));
             }
 
+            AddIf(tags, entity is IFixedUpdate, "IFixedUpdate");
             AddIf(tags, entity is IUpdate, "IUpdate");
+            AddIf(tags, entity is IStart, "IStart");
             AddIf(tags, entity is IDestroy, "IDestroy");
-            AddIf(tags, entity is IHasUpdateStrategy, "IHasUpdateStrategy");
+            AddIf(tags, entity is IEntityUpdateInterval, "IEntityUpdateInterval");
             AddIf(tags, entity is Scene, "Scene");
 
-            if (entity is IEntityLifecycleGate gate)
+            if (entity is IEntityReadyState readyState)
             {
-                tags.Add(new InterfaceTag("IEntityLifecycleGate"));
-                tags.Add(new InterfaceTag(gate.IsReady ? "Ready" : "Not Ready", isState: true, isWarning: !gate.IsReady));
-                tags.Add(new InterfaceTag(gate.CanRun ? "CanRun" : "Blocked", isState: true, isWarning: !gate.CanRun));
+                tags.Add(new InterfaceTag("IEntityReadyState"));
+                tags.Add(ResolveBooleanState(
+                    () => readyState.IsReady,
+                    "Ready",
+                    "Not Ready",
+                    "Ready State Error"));
             }
 
-            if (entity is IDependentComponent dependent)
+            if (entity is IEntityUpdateState updateState)
             {
-                tags.Add(new InterfaceTag("IDependentComponent"));
+                tags.Add(new InterfaceTag("IEntityUpdateState"));
+                tags.Add(ResolveBooleanState(
+                    () => updateState.IsUpdateEnabled,
+                    "Update Enabled",
+                    "Update Disabled",
+                    "Update State Error"));
+            }
+
+            if (entity is IStart && entity.GetWorld().Hierarchy.TryGetNode(entity, out var record))
+            {
                 tags.Add(new InterfaceTag(
-                    dependent.AreAllDependenciesMet ? "Dependencies Met" : "Dependencies Missing",
+                    record.IsStartFaulted ? "Start Faulted" : record.IsStarted ? "Started" : "Waiting to Start",
                     isState: true,
-                    isWarning: !dependent.AreAllDependenciesMet));
+                    isWarning: record.IsStartFaulted));
+            }
+
+            UpdateRequirementResult requirementResult = UpdateRequirementResolver.Check(entity);
+            if (requirementResult.HasRequirements)
+            {
+                tags.Add(new InterfaceTag("RequireForUpdate"));
+                tags.Add(CreateRequirementStateTag(requirementResult));
             }
 
             return tags;
+        }
+
+        private static InterfaceTag CreateRequirementStateTag(UpdateRequirementResult result)
+        {
+            string requirementName = result.RequirementType?.Name ?? "Owner";
+            switch (result.BlockReason)
+            {
+                case UpdateRequirementBlockReason.ComponentMissing:
+                    return new InterfaceTag($"Missing {requirementName}", isState: true, isWarning: true);
+                case UpdateRequirementBlockReason.ComponentNotReady:
+                    return new InterfaceTag($"Waiting for {requirementName}", isState: true, isWarning: true);
+                case UpdateRequirementBlockReason.ComponentStateError:
+                    return new InterfaceTag($"State error: {requirementName}", isState: true, isWarning: true);
+                case UpdateRequirementBlockReason.NotComponent:
+                    return new InterfaceTag("Invalid update requirement target", isState: true, isWarning: true);
+                case UpdateRequirementBlockReason.OwnerMissing:
+                    return new InterfaceTag("Update requirement owner missing", isState: true, isWarning: true);
+                default:
+                    return new InterfaceTag("Update Requirements Ready", isState: true);
+            }
+        }
+
+        private static InterfaceTag ResolveBooleanState(
+            Func<bool> readState,
+            string trueLabel,
+            string falseLabel,
+            string errorLabel)
+        {
+            try
+            {
+                bool value = readState();
+                return new InterfaceTag(
+                    value ? trueLabel : falseLabel,
+                    isState: true,
+                    isWarning: !value);
+            }
+            catch
+            {
+                return new InterfaceTag(errorLabel, isState: true, isWarning: true);
+            }
         }
 
         private static void AddIf(List<InterfaceTag> tags, bool condition, string label)

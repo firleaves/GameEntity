@@ -207,15 +207,14 @@ namespace GameEntity.Unity.Tests
 
             yield return null;
 
-            Assert.IsFalse(dependent.AreAllDependenciesMet);
+            Assert.AreEqual(0, dependent.StartCount);
             Assert.AreEqual(0, dependent.UpdateCount);
 
             host.AddComponent<RequiredProbeComponent>();
 
             yield return null;
 
-            Assert.IsTrue(dependent.AreAllDependenciesMet);
-            Assert.That(dependent.ActivationChanges, Is.EqualTo(new[] { true }));
+            Assert.AreEqual(1, dependent.StartCount);
             Assert.Greater(dependent.UpdateCount, 0);
 
             int updateCount = dependent.UpdateCount;
@@ -224,61 +223,51 @@ namespace GameEntity.Unity.Tests
 
             yield return null;
 
-            Assert.IsFalse(dependent.AreAllDependenciesMet);
-            Assert.That(dependent.ActivationChanges, Is.EqualTo(new[] { true, false }));
+            Assert.AreEqual(1, dependent.StartCount);
             Assert.AreEqual(updateCount, dependent.UpdateCount);
         }
 
         [UnityTest]
-        public IEnumerator LifecycleGate_ShouldKeepEntityInTreeButBlockRuntimeUntilReady()
+        public IEnumerator UpdateState_ShouldKeepEntityInTreeButBlockUpdateUntilEnabled()
         {
-            var scene = Track(new RegressionScene("GateScene"));
-            var entity = scene.AddChild<GatedRuntimeEntity>();
+            var scene = Track(new RegressionScene("UpdateStateScene"));
+            var entity = scene.AddChild<UpdateStateRuntimeEntity>();
 
             yield return null;
 
             Assert.AreSame(scene, entity.Parent);
             Assert.IsTrue(scene.ContainsChild(entity.Id));
             Assert.NotNull(_runner.Registry.GetView(entity));
-            Assert.IsFalse(entity.IsReady);
-            Assert.IsFalse(entity.CanRun);
+            Assert.IsFalse(entity.IsUpdateEnabled);
             Assert.AreEqual(0, entity.UpdateCount);
 
-            entity.SetCanRun(true);
+            entity.SetUpdateEnabled(true);
 
             yield return null;
 
-            Assert.AreEqual(0, entity.UpdateCount);
-
-            entity.SetReady(true);
-
-            yield return null;
-
-            Assert.IsTrue(entity.IsReady);
-            Assert.IsTrue(entity.CanRun);
+            Assert.IsTrue(entity.IsUpdateEnabled);
             Assert.Greater(entity.UpdateCount, 0);
         }
 
         [UnityTest]
-        public IEnumerator LifecycleGateDependency_ShouldTreatUnreadyRequiredComponentAsMissing()
+        public IEnumerator ReadyStateDependency_ShouldTreatUnreadyRequiredComponentAsMissing()
         {
-            var scene = Track(new RegressionScene("GateDependencyScene"));
+            var scene = Track(new RegressionScene("ReadyStateDependencyScene"));
             var host = scene.AddChild<DependencyHostEntity>();
-            var required = host.AddComponent<GatedRequiredComponent>();
-            var dependent = host.AddComponent<GatedDependentProbeComponent>();
+            var required = host.AddComponent<ReadyStateRequiredComponent>();
+            var dependent = host.AddComponent<ReadyStateDependentProbeComponent>();
 
             yield return null;
 
             Assert.IsFalse(required.IsReady);
-            Assert.IsFalse(dependent.AreAllDependenciesMet);
+            Assert.AreEqual(0, dependent.StartCount);
             Assert.AreEqual(0, dependent.UpdateCount);
 
             required.SetReady(true);
 
             yield return null;
 
-            Assert.IsTrue(dependent.AreAllDependenciesMet);
-            Assert.That(dependent.ActivationChanges, Is.EqualTo(new[] { true }));
+            Assert.AreEqual(1, dependent.StartCount);
             Assert.Greater(dependent.UpdateCount, 0);
         }
 
@@ -362,15 +351,20 @@ namespace GameEntity.Unity.Tests
             }
         }
 
-        [DependsOn(typeof(RequiredProbeComponent))]
-        private sealed class DependentProbeComponent : DependentComponentBase, IAwake, IUpdate
+        [RequireForUpdate(typeof(RequiredProbeComponent))]
+        private sealed class DependentProbeComponent : Entity, IAwake, IStart, IUpdate
         {
-            public int UpdateCount { get; private set; }
+            public int StartCount { get; private set; }
 
-            public List<bool> ActivationChanges { get; } = new List<bool>();
+            public int UpdateCount { get; private set; }
 
             public void Awake()
             {
+            }
+
+            public void Start()
+            {
+                StartCount++;
             }
 
             public void Update(float time)
@@ -378,19 +372,11 @@ namespace GameEntity.Unity.Tests
                 UpdateCount++;
             }
 
-            protected override void OnActivationChanged(bool isActive)
-            {
-                ActivationChanges.Add(isActive);
-            }
         }
 
-        private sealed class GatedRuntimeEntity : Entity, IAwake, IUpdate, IEntityLifecycleGate
+        private sealed class UpdateStateRuntimeEntity : Entity, IAwake, IUpdate, IEntityUpdateState
         {
-            private bool _canRun;
-
-            public bool IsReady { get; private set; }
-
-            public bool CanRun => IsReady && _canRun;
+            public bool IsUpdateEnabled { get; private set; }
 
             public int UpdateCount { get; private set; }
 
@@ -403,22 +389,15 @@ namespace GameEntity.Unity.Tests
                 UpdateCount++;
             }
 
-            public void SetReady(bool isReady)
+            public void SetUpdateEnabled(bool isUpdateEnabled)
             {
-                IsReady = isReady;
-            }
-
-            public void SetCanRun(bool canRun)
-            {
-                _canRun = canRun;
+                IsUpdateEnabled = isUpdateEnabled;
             }
         }
 
-        private sealed class GatedRequiredComponent : Entity, IAwake, IEntityLifecycleGate
+        private sealed class ReadyStateRequiredComponent : Entity, IAwake, IEntityReadyState
         {
             public bool IsReady { get; private set; }
-
-            public bool CanRun => IsReady;
 
             public void Awake()
             {
@@ -430,15 +409,20 @@ namespace GameEntity.Unity.Tests
             }
         }
 
-        [DependsOn(typeof(GatedRequiredComponent))]
-        private sealed class GatedDependentProbeComponent : DependentComponentBase, IAwake, IUpdate
+        [RequireForUpdate(typeof(ReadyStateRequiredComponent))]
+        private sealed class ReadyStateDependentProbeComponent : Entity, IAwake, IStart, IUpdate
         {
-            public int UpdateCount { get; private set; }
+            public int StartCount { get; private set; }
 
-            public List<bool> ActivationChanges { get; } = new List<bool>();
+            public int UpdateCount { get; private set; }
 
             public void Awake()
             {
+            }
+
+            public void Start()
+            {
+                StartCount++;
             }
 
             public void Update(float time)
@@ -446,10 +430,6 @@ namespace GameEntity.Unity.Tests
                 UpdateCount++;
             }
 
-            protected override void OnActivationChanged(bool isActive)
-            {
-                ActivationChanges.Add(isActive);
-            }
         }
     }
 }

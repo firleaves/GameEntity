@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using GameEntity;
 using UnityEngine;
@@ -10,22 +11,29 @@ namespace GameEntity.Unity.Framework
     {
         private readonly Dictionary<string, Func<IProcedure>> _factories = new Dictionary<string, Func<IProcedure>>(StringComparer.Ordinal);
         private readonly Dictionary<string, IProcedure> _stateCache = new Dictionary<string, IProcedure>(StringComparer.Ordinal);
+        private readonly Queue<TransitionRequest> _requests = new Queue<TransitionRequest>();
         private IProcedure _currentState;
         private string _currentStateName;
-        private bool _isTransitioning;
-        private string _pendingStateName;
+        private bool _processingRequests;
+        private CancellationTokenSource _lifetimeCts;
 
         public IProcedure CurrentState => _currentState;
         public string CurrentStateName => _currentStateName;
-        public bool IsTransitioning => _isTransitioning;
+        public bool IsTransitioning => _processingRequests;
 
         public void Awake()
         {
+            _lifetimeCts?.Dispose();
+            _lifetimeCts = new CancellationTokenSource();
+            _requests.Clear();
+            _currentState = null;
+            _currentStateName = null;
+            _processingRequests = false;
         }
 
         public void Update(float deltaTime)
         {
-            if (_isTransitioning)
+            if (_processingRequests)
             {
                 return;
             }
@@ -35,9 +43,16 @@ namespace GameEntity.Unity.Framework
 
         public void OnDestroy()
         {
-            StopAsync().Forget(Debug.LogException);
+            var cancellationToken = _lifetimeCts != null ? _lifetimeCts.Token : default;
+            _lifetimeCts?.Cancel();
+            CancelPendingRequests(cancellationToken);
             _factories.Clear();
             _stateCache.Clear();
+            _currentState = null;
+            _currentStateName = null;
+            _processingRequests = false;
+            _lifetimeCts?.Dispose();
+            _lifetimeCts = null;
         }
 
         public void Register<TState>(string stateName = null) where TState : IProcedure, new()
@@ -71,7 +86,7 @@ namespace GameEntity.Unity.Framework
             return ChangeStateAsync(stateName);
         }
 
-        public async UniTask ChangeStateAsync(string stateName)
+        public UniTask ChangeStateAsync(string stateName)
         {
             if (string.IsNullOrWhiteSpace(stateName))
             {
@@ -83,69 +98,137 @@ namespace GameEntity.Unity.Framework
                 throw new FrameworkException($"切换流程失败：未注册状态 {stateName}。");
             }
 
+            if (!_processingRequests && string.Equals(_currentStateName, stateName, StringComparison.Ordinal))
+            {
+                return UniTask.CompletedTask;
+            }
+
+            return EnqueueRequest(stateName, stop: false);
+        }
+
+        public UniTask StopAsync()
+        {
+            if (!_processingRequests && _currentState == null)
+            {
+                _currentStateName = null;
+                return UniTask.CompletedTask;
+            }
+
+            return EnqueueRequest(null, stop: true);
+        }
+
+        private UniTask EnqueueRequest(string stateName, bool stop)
+        {
+            if (_lifetimeCts == null || _lifetimeCts.IsCancellationRequested || IsDestroyed)
+            {
+                return UniTask.FromException(new FrameworkException("ProcedureSystem 已销毁，不能提交状态转换。"));
+            }
+
+            var request = new TransitionRequest(stateName, stop);
+            _requests.Enqueue(request);
+            if (!_processingRequests)
+            {
+                ProcessRequestsAsync(_lifetimeCts.Token).Forget(Debug.LogException);
+            }
+
+            return request.Completion.Task;
+        }
+
+        private async UniTask ProcessRequestsAsync(CancellationToken ct)
+        {
+            _processingRequests = true;
+            try
+            {
+                while (_requests.Count > 0)
+                {
+                    if (ct.IsCancellationRequested)
+                    {
+                        CancelPendingRequests(ct);
+                        break;
+                    }
+
+                    var request = _requests.Dequeue();
+                    try
+                    {
+                        if (request.Stop)
+                        {
+                            await ExecuteStopAsync(ct);
+                        }
+                        else
+                        {
+                            await ExecuteChangeStateAsync(request.StateName, ct);
+                        }
+
+                        request.Completion.TrySetResult();
+                    }
+                    catch (OperationCanceledException ex)
+                    {
+                        request.Completion.TrySetCanceled(ex.CancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        request.Completion.TrySetException(ex);
+                    }
+                }
+            }
+            finally
+            {
+                _processingRequests = false;
+                if (ct.IsCancellationRequested)
+                {
+                    CancelPendingRequests(ct);
+                }
+            }
+        }
+
+        private async UniTask ExecuteChangeStateAsync(string stateName, CancellationToken ct)
+        {
             if (string.Equals(_currentStateName, stateName, StringComparison.Ordinal))
             {
                 return;
             }
 
-            if (_isTransitioning)
+            if (_currentState != null)
             {
-                _pendingStateName = stateName;
-                return;
+                await _currentState
+                    .ExitAsync(new ProcedureContext(_currentStateName, this, ct))
+                    .AttachExternalCancellation(ct);
             }
 
-            _isTransitioning = true;
+            ct.ThrowIfCancellationRequested();
+            var nextState = GetOrCreateState(stateName);
+            _currentState = nextState;
+            _currentStateName = stateName;
+            await nextState
+                .EnterAsync(new ProcedureContext(stateName, this, ct))
+                .AttachExternalCancellation(ct);
+        }
+
+        private async UniTask ExecuteStopAsync(CancellationToken ct)
+        {
+            var currentState = _currentState;
+            var currentStateName = _currentStateName;
             try
             {
-                if (_currentState != null)
+                if (currentState != null)
                 {
-                    await _currentState.ExitAsync(new ProcedureContext(_currentStateName, this));
+                    await currentState
+                        .ExitAsync(new ProcedureContext(currentStateName, this, ct))
+                        .AttachExternalCancellation(ct);
                 }
-
-                var nextState = GetOrCreateState(stateName);
-                _currentState = nextState;
-                _currentStateName = stateName;
-                await _currentState.EnterAsync(new ProcedureContext(stateName, this));
             }
             finally
             {
-                _isTransitioning = false;
-            }
-
-            if (!string.IsNullOrWhiteSpace(_pendingStateName))
-            {
-                var pending = _pendingStateName;
-                _pendingStateName = null;
-                await ChangeStateAsync(pending);
+                _currentState = null;
+                _currentStateName = null;
             }
         }
 
-        public async UniTask StopAsync()
+        private void CancelPendingRequests(CancellationToken ct)
         {
-            if (_currentState == null)
+            while (_requests.Count > 0)
             {
-                _currentStateName = null;
-                _pendingStateName = null;
-                return;
-            }
-
-            if (_isTransitioning)
-            {
-                _pendingStateName = null;
-                return;
-            }
-
-            _isTransitioning = true;
-            try
-            {
-                await _currentState.ExitAsync(new ProcedureContext(_currentStateName, this));
-                _currentState = null;
-                _currentStateName = null;
-                _pendingStateName = null;
-            }
-            finally
-            {
-                _isTransitioning = false;
+                _requests.Dequeue().Completion.TrySetCanceled(ct);
             }
         }
 
@@ -164,6 +247,20 @@ namespace GameEntity.Unity.Framework
 
             _stateCache.Add(stateName, state);
             return state;
+        }
+
+        private sealed class TransitionRequest
+        {
+            public TransitionRequest(string stateName, bool stop)
+            {
+                StateName = stateName;
+                Stop = stop;
+                Completion = new UniTaskCompletionSource();
+            }
+
+            public string StateName { get; }
+            public bool Stop { get; }
+            public UniTaskCompletionSource Completion { get; }
         }
     }
 

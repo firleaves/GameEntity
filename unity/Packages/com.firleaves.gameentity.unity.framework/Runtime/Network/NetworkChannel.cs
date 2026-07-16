@@ -179,10 +179,10 @@ namespace GameEntity.Unity.Framework
             };
         }
 
-        public void Tick(float deltaTime)
+        public void Update(float deltaTime)
         {
             var dt = Math.Max(0f, deltaTime);
-            _transport.Tick(dt);
+            _transport.Update(dt);
             _callBox.Update(dt);
 
             if (!_transport.IsConnected || HeartbeatIntervalSeconds <= 0f)

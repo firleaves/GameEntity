@@ -10,6 +10,7 @@ namespace GameEntity.Unity.Framework.Tests
         {
             FirstProcedure.Reset();
             SecondProcedure.Reset();
+            BlockingProcedure.Reset();
         }
 
         [Test]
@@ -59,6 +60,50 @@ namespace GameEntity.Unity.Framework.Tests
             Assert.AreEqual(1, FirstProcedure.ExitCount);
         }
 
+        [Test]
+        public async UniTask ConcurrentChange_WaitsUntilQueuedTransitionCompletes()
+        {
+            var system = new ProcedureSystemEntity();
+            system.Awake();
+            system.Register<BlockingProcedure>();
+            system.Register<SecondProcedure>();
+
+            var firstTransition = system.ChangeStateAsync<BlockingProcedure>();
+            var secondTransition = system.ChangeStateAsync<SecondProcedure>();
+
+            Assert.AreEqual(UniTaskStatus.Pending, firstTransition.Status);
+            Assert.AreEqual(UniTaskStatus.Pending, secondTransition.Status);
+
+            BlockingProcedure.EnterCompletion.TrySetResult();
+            await firstTransition;
+            await secondTransition;
+
+            Assert.AreEqual(nameof(SecondProcedure), system.CurrentStateName);
+            Assert.AreEqual(1, BlockingProcedure.ExitCount);
+            Assert.AreEqual(1, SecondProcedure.EnterCount);
+        }
+
+        [Test]
+        public async UniTask StopDuringTransition_WaitsAndExitsCurrentState()
+        {
+            var system = new ProcedureSystemEntity();
+            system.Awake();
+            system.Register<BlockingProcedure>();
+
+            var transition = system.ChangeStateAsync<BlockingProcedure>();
+            var stop = system.StopAsync();
+
+            Assert.AreEqual(UniTaskStatus.Pending, stop.Status);
+            BlockingProcedure.EnterCompletion.TrySetResult();
+
+            await transition;
+            await stop;
+
+            Assert.IsNull(system.CurrentState);
+            Assert.IsNull(system.CurrentStateName);
+            Assert.AreEqual(1, BlockingProcedure.ExitCount);
+        }
+
         private sealed class FirstProcedure : Procedure
         {
             public static int EnterCount;
@@ -105,6 +150,29 @@ namespace GameEntity.Unity.Framework.Tests
             {
                 EnterCount++;
                 return UniTask.CompletedTask;
+            }
+
+            public override UniTask ExitAsync(ProcedureContext context)
+            {
+                ExitCount++;
+                return UniTask.CompletedTask;
+            }
+        }
+
+        private sealed class BlockingProcedure : Procedure
+        {
+            public static UniTaskCompletionSource EnterCompletion;
+            public static int ExitCount;
+
+            public static void Reset()
+            {
+                EnterCompletion = new UniTaskCompletionSource();
+                ExitCount = 0;
+            }
+
+            public override UniTask EnterAsync(ProcedureContext context)
+            {
+                return EnterCompletion.Task;
             }
 
             public override UniTask ExitAsync(ProcedureContext context)

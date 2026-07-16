@@ -18,6 +18,7 @@ namespace GameEntity.Unity.Framework
         private UIOptions _options;
         private IUIAdapter _adapter;
         private Transform _root;
+        private GameObject _ownedEventSystem;
 
         public Transform Root => _root;
 
@@ -34,7 +35,7 @@ namespace GameEntity.Unity.Framework
 
             if (dependencies.AutoCreateEventSystem)
             {
-                EnsureEventSystem();
+                _ownedEventSystem = EnsureEventSystem(dependencies.FrameworkRoot);
             }
         }
 
@@ -47,6 +48,11 @@ namespace GameEntity.Unity.Framework
             _adapter = null;
             _root = null;
             _options = null;
+            if (_ownedEventSystem != null)
+            {
+                UnityEngine.Object.Destroy(_ownedEventSystem);
+                _ownedEventSystem = null;
+            }
         }
 
         public async UniTask<TUI> OpenAsync<TUI>(UIOpenParams options = null, CancellationToken ct = default)
@@ -310,19 +316,28 @@ namespace GameEntity.Unity.Framework
             }
         }
 
-        private static void EnsureEventSystem()
+        private static GameObject EnsureEventSystem(Transform frameworkRoot)
         {
             var eventSystem = EventSystem.current;
             if (eventSystem != null)
             {
                 EnsureCompatibleInputModule(eventSystem.gameObject);
-                return;
+                return null;
             }
 
             var go = new GameObject("[GameEntity.Unity.Framework.EventSystem]");
+            if (frameworkRoot != null)
+            {
+                go.transform.SetParent(frameworkRoot, false);
+            }
+            else
+            {
+                UnityEngine.Object.DontDestroyOnLoad(go);
+            }
+
             go.AddComponent<EventSystem>();
             EnsureCompatibleInputModule(go);
-            UnityEngine.Object.DontDestroyOnLoad(go);
+            return go;
         }
 
         private static void EnsureCompatibleInputModule(GameObject go)

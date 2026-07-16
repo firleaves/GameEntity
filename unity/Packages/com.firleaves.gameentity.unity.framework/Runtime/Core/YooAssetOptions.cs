@@ -8,7 +8,6 @@ namespace GameEntity.Unity.Framework
     {
         public string DefaultPackageName = "DefaultPackage";
         public YooAssetPlayMode PlayMode = YooAssetPlayMode.EditorSimulate;
-        public string BuildPipeline = "EditorSimulateBuildPipeline";
         public string HostServerUrl;
         public string FallbackHostServerUrl;
         public bool SetAsDefaultPackage = true;
@@ -24,7 +23,6 @@ namespace GameEntity.Unity.Framework
             {
                 DefaultPackageName = DefaultPackageName,
                 PlayMode = PlayMode,
-                BuildPipeline = BuildPipeline,
                 HostServerUrl = HostServerUrl,
                 FallbackHostServerUrl = FallbackHostServerUrl,
                 SetAsDefaultPackage = SetAsDefaultPackage,

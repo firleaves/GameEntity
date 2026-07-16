@@ -24,7 +24,7 @@ namespace GameEntity.Unity.Framework
 
             foreach (var channel in _channels.Values)
             {
-                channel.Tick(deltaTime);
+                channel.Update(deltaTime);
             }
         }
 

@@ -80,7 +80,7 @@ namespace GameEntity.Unity.Framework
             Closed?.Invoke(reason, message);
         }
 
-        public void Tick(float deltaTime)
+        public void Update(float deltaTime)
         {
         }
     }

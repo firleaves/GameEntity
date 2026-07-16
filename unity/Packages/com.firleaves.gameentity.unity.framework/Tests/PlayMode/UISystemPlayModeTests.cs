@@ -4,6 +4,7 @@ using Cysharp.Threading.Tasks;
 using GameEntity;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
 
 namespace GameEntity.Unity.Framework.Tests
@@ -121,6 +122,31 @@ namespace GameEntity.Unity.Framework.Tests
             Assert.AreSame(first, second);
             Assert.AreEqual(1, _instancePool.RentCount);
             Assert.AreEqual(1, TestPanel.RefocusCount);
+        }
+
+        [UnityTest]
+        public IEnumerator OwnedEventSystem_IsDestroyedWithUISystem()
+        {
+            Assert.IsNull(EventSystem.current, "测试开始前不应存在外部 EventSystem。");
+            var ownedSystem = _scene.AddChild<UISystemEntity, UISystemDependencies>(new UISystemDependencies
+            {
+                Options = UIOptions.CreateDefault(),
+                InstancePool = _instancePool,
+                FrameworkRoot = _frameworkRoot.transform,
+                AutoCreateEventSystem = true
+            });
+            yield return null;
+
+            var eventSystemObject = EventSystem.current != null
+                ? EventSystem.current.gameObject
+                : null;
+            Assert.NotNull(eventSystemObject);
+
+            ownedSystem.Destroy();
+            yield return null;
+
+            Assert.IsTrue(eventSystemObject == null);
+            Assert.IsNull(EventSystem.current);
         }
 
         private sealed class TestScene : Scene

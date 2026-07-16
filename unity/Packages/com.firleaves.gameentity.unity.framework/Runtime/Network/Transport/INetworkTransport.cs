@@ -16,7 +16,7 @@ namespace GameEntity.Unity.Framework
         UniTask ConnectAsync(NetworkConnectOptions options, CancellationToken ct = default);
         void Send(ArraySegment<byte> bytes);
         void Close(NetworkCloseReason reason = NetworkCloseReason.Local, string message = null);
-        void Tick(float deltaTime);
+        void Update(float deltaTime);
     }
 
 }

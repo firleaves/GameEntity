@@ -25,6 +25,7 @@ namespace GameEntity.Unity.Framework
 
         private readonly List<IGameLaunchTask> _tasks = new List<IGameLaunchTask>(8);
         private CancellationTokenSource _destroyCts;
+        private UniTaskCompletionSource _launchCompletion;
         private bool _launching;
 
         public bool IsLaunched { get; private set; }
@@ -53,14 +54,28 @@ namespace GameEntity.Unity.Framework
             _destroyCts = null;
         }
 
-        public async UniTask LaunchAsync(CancellationToken ct = default)
+        public UniTask LaunchAsync(CancellationToken ct = default)
         {
-            if (IsLaunched || _launching)
+            if (IsLaunched)
             {
-                return;
+                return UniTask.CompletedTask;
+            }
+
+            if (_launching)
+            {
+                return ct.CanBeCanceled
+                    ? _launchCompletion.Task.AttachExternalCancellation(ct)
+                    : _launchCompletion.Task;
             }
 
             _launching = true;
+            _launchCompletion = new UniTaskCompletionSource();
+            LaunchCoreAsync(ct, _launchCompletion).Forget(Debug.LogException);
+            return _launchCompletion.Task;
+        }
+
+        private async UniTask LaunchCoreAsync(CancellationToken ct, UniTaskCompletionSource completion)
+        {
             try
             {
                 var targetFramework = ResolveFramework();
@@ -77,6 +92,15 @@ namespace GameEntity.Unity.Framework
                 }
 
                 IsLaunched = true;
+                completion.TrySetResult();
+            }
+            catch (OperationCanceledException ex)
+            {
+                completion.TrySetCanceled(ex.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
             }
             finally
             {
