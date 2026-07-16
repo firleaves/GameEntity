@@ -93,14 +93,6 @@ Scene 派生类型不能使用 `AddChild/AddComponent`，也不能声明 `ChildO
 
 不要通过手工拖动 Transform 修复；应调用 `ReparentTo` 或重新 `Bind`。
 
-## Framework 尚未初始化
-
-`GameEntry` 强类型属性要求 `FrameworkEntry.IsReady == true`。异步启动流程应等待 `InitializeAsync`，普通组件可在业务启动 Procedure 中访问。可选功能先用 `GameEntry.TryGet<T>`。
-
-## Framework 功能依赖异常
-
-检查 `FrameworkOptions.Features`：Data/Instance/Audio/Localization 需要 Asset；UI 使用实例池时需要 InstancePool；Asset/ResourceUpdate/Scene 需要正确的 YooAsset 模式和参数。
-
 ## 真机连不上 Debug Server
 
 - `127.0.0.1` 在手机上指手机自身，改为电脑局域网 IP。
@@ -108,10 +100,6 @@ Scene 派生类型不能使用 `AddChild/AddComponent`，也不能声明 `ChildO
 - Client Token 与服务端输出完全一致。
 - URL 路径使用 `/ws/device`，Web Console 使用 `/ws/web`，不能混用。
 - 先启动 `--enable-mock=true` 验证服务端与页面，再排查设备连接。
-
-## GPU Terrain 空白或无植被
-
-按顺序检查：Unity/URP 版本、RendererFeature、烘焙 Asset、Authoring 引用、相机、材质/Shader、Compute Shader 支持。打开 F8 Overlay，并读取 `IGpuTerrainSystem.LastError`、`IGpuTerrainVegetationSystem.LastError`；若样例也失败，再运行包内验证入口定位工具链问题。
 
 ## 最小问题报告
 
@@ -122,6 +110,6 @@ Scene 派生类型不能使用 `AddChild/AddComponent`，也不能声明 `ChildO
 - 完整异常栈或 Debug Server 日志。
 - `CaptureEntitySnapshot()` 的相关节点。
 - `ValidateEntities().Issues`。
-- Unity 问题附 Runner/Framework 配置；GPU 问题附 F8 Overlay 截图与 RendererData。
+- Unity 问题附 Runner 配置与相关 Inspector 状态。
 
 [返回知识库首页](README.md)

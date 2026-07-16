@@ -1,8 +1,6 @@
 {
   "dependencies": {
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
-    "com.firleaves.gameentity.unity.framework": "file:Packages/com.firleaves.gameentity.unity.framework",
-    "com.firleaves.gameentity.unity.framework.extension": "file:Packages/com.firleaves.gameentity.unity.framework.extension",
     "com.firleaves.gameentity.unity": "file:Packages/com.firleaves.gameentity.unity",
     "com.unity.ai.navigation": "2.0.13",
     "com.unity.collab-proxy": "2.12.4",
@@ -48,9 +46,7 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0",
-    "com.tuyoogame.yooasset": "2.3.19",
-    "com.unityagentbridge.core": "https://github.com/XuToWei/UnityAgentBridge.git?path=Unity"
+    "com.unity.modules.xr": "1.0.0"
   },
   "scopedRegistries": [
     {

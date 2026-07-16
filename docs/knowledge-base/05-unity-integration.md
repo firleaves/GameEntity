@@ -137,10 +137,9 @@ runner.Registry.Unbind(entity);
 ```text
 Bootstrap GameObject
 ├── GameEntityRunner        # Core 驱动与调试投影
-├── FrameworkEntry          # 可选，完整游戏服务
 └── GameEntityDebugClient   # 可选，远程诊断
 ```
 
-通常先由 Runner 建立宿主，再由 Framework/业务创建 Scene 和 Entity；已有 Entity 树也可由 Runner 启动时回放。不要在每个玩法 Scene 重复放置 Runner。
+通常先由 Runner 建立宿主，再由业务创建 Scene 和 Entity；已有 Entity 树也可由 Runner 启动时回放。不要在每个玩法 Scene 重复放置 Runner。
 
 [返回知识库首页](README.md)

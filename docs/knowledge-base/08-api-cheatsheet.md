@@ -163,30 +163,4 @@ runner.Registry.Unbind(entity);
 
 Runner 通常自动投影，无需业务手动调用；即使 Runner 晚于 Entity 创建，也会回放已有树。
 
-## Framework
-
-```csharp
-GameEntry.Asset;
-GameEntry.Data;
-GameEntry.ResourceUpdate;
-GameEntry.Scene;
-GameEntry.Instance;
-GameEntry.Audio;
-GameEntry.Timer;
-GameEntry.Event;
-GameEntry.Localization;
-GameEntry.Settings;
-GameEntry.UI;
-GameEntry.Save;
-GameEntry.Procedure;
-GameEntry.Network;
-
-GameEntry.Get<T>();
-GameEntry.TryGet(out T service);
-GameEntry.Has<T>();
-GameEntry.HasFeature(feature);
-```
-
-只有 `FrameworkEntry.IsReady` 后才可使用强类型静态属性。
-
 [返回知识库首页](README.md)

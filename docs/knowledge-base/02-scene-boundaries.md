@@ -25,7 +25,7 @@ Scene 通过 `World.Instance.AddScene` 注册后形成独立的 `SceneRoot`：
 
 ```text
 World
-├── FrameworkScene
+├── GlobalServicesScene
 ├── LobbyScene
 ├── BattleScene:10001
 └── BattleScene:10002
@@ -64,7 +64,7 @@ AI 的方案应明确写出依据，例如：
 
 ```text
 选择：BattleScene:10001
-原因：该战斗是 World 下的顶层会话，可以在 FrameworkScene 和其他战斗继续存活时独立销毁，战斗内全部 Entity 应原子清理。
+原因：该战斗是 World 下的顶层会话，可以在 GlobalServicesScene 和其他战斗继续存活时独立销毁，战斗内全部 Entity 应原子清理。
 ```
 
 或者：
@@ -95,20 +95,20 @@ BattleScene:10001
 World.Instance.RemoveScene("Battle:10001");
 ```
 
-它不应影响常驻 Framework、Lobby 或其他战斗实例，因此适合独立 Scene。
+它不应影响常驻基础服务、Lobby 或其他战斗实例，因此适合独立 Scene。
 
 ### World 下的顶层运行时领域
 
 一组对象没有合理的业务 Entity owner，直接属于 World 时，可以形成 Scene：
 
 ```text
-FrameworkScene
+GlobalServicesScene
 LobbyScene
 BattleScene
 EditorPreviewScene
 ```
 
-`FrameworkScene` 是基础服务根，`BattleScene` 是玩法会话根。二者不存在合理的父子所有权，适合并列注册。
+`GlobalServicesScene` 是基础服务根，`BattleScene` 是玩法会话根。二者不存在合理的父子所有权，适合并列注册。
 
 ### 多个相互隔离的运行时实例
 
@@ -127,7 +127,7 @@ Match:10003
 某个作用域可以完整卸载，而其他运行时作用域必须继续存在时，可以拆为 Scene：
 
 ```text
-FrameworkScene   始终存在
+GlobalServicesScene   始终存在
 LobbyScene       进入战斗后销毁
 BattleScene      战斗期间存在
 ```
@@ -167,7 +167,7 @@ AudioScene
 登录、背包、设置等页面通常由 UI 系统管理：
 
 ```text
-FrameworkScene
+GlobalServicesScene
 └── UISystemEntity
     ├── LoginUIEntity
     ├── InventoryUIEntity
@@ -202,7 +202,7 @@ Unity 中存在 Canvas、页面切换或独立 Prefab，不构成创建 GameEnti
 
 ```text
 World
-├── FrameworkScene
+├── GlobalServicesScene
 └── DungeonScene:20001
     ├── DungeonContextEntity
     ├── PlayerEntity
@@ -226,7 +226,7 @@ BattleScene
 使用独立 Scene：
 
 ```text
-FrameworkScene
+GlobalServicesScene
 LobbyScene
 BattleScene
 ```
@@ -253,9 +253,9 @@ GameScene
 
 两者不能默认一一对应：
 
-- 一个 Unity Bootstrap Scene 可以同时承载 FrameworkScene、LobbyScene 和 DebugPreviewScene。
+- 一个 Unity Bootstrap Scene 可以同时承载 GlobalServicesScene、LobbyScene 和 DebugPreviewScene。
 - Unity 可以 Additive 加载地图、灯光和 UI，但业务仍属于一个 BattleScene。
-- FrameworkScene 可以在 Unity Scene 切换期间继续存活。
+- GlobalServicesScene 可以在 Unity Scene 切换期间继续存活。
 
 规范是：
 
@@ -285,7 +285,6 @@ Unity Scene 的加载与卸载不应隐式决定 GameEntity Scene 的生命，�
 单例型作用域使用稳定名称：
 
 ```text
-GameEntity.Unity.Framework
 GlobalServices
 PlayerSession
 Lobby

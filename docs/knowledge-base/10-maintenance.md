@@ -10,10 +10,8 @@
 - Entity/Component/容器建模边界：`02-entity-vs-data.md`、快速开始、API 速查和相关业务示例。
 - Scene 创建、销毁和 Unity Scene 映射边界：`02-scene-boundaries.md`、快速开始、层级、Unity 接入、API 速查和故障排查。
 - Unity Runner/投影行为：`05`、`08`、`09`。
-- Framework 服务或功能依赖：`06`、`08`、`09`。
-- 包版本/Unity 版本/依赖：总入口、`05`～`07`。
+- 包版本/Unity 版本/依赖：总入口、`05`、`07`。
 - Debug Server 参数或协议：`07`、`09`。
-- GPU Terrain 接入与验证：`07`、`09`。
 
 ## 更新流程
 
@@ -68,10 +66,7 @@ src/GameEntity/                                  Core 实现
 tests/GameEntity.Tests/                          Core 行为测试
 apps/GameEntity.CoreTestApp/                     Core 可运行示例
 unity/Packages/com.firleaves.gameentity.unity/   Unity 适配与示例
-unity/Packages/com.firleaves.gameentity.unity.framework/
-unity/Packages/com.firleaves.gameentity.unity.framework.extension/
 unity/Packages/com.firleaves.gameentity.unity.debugger/
-unity/Packages/com.firleaves.gameentity.unity.gpu-terrain/
 tools/gameentity-debug-server/                   电脑侧调试服务
 ```
 

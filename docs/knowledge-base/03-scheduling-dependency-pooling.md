@@ -188,11 +188,8 @@ Scheduler 在调用 `Start` 前后会同时核对原始 Handle 与 `InstanceId`�
 
 池化类型必须把所有可变状态在 `Awake` 中完全重置，并在 `OnDestroy` 中释放外部资源。不能依赖字段初始化器在每次复用时重新执行。
 
-## 两种“池”不要混淆
+## Core 对象池的边界
 
-- Core 对象池：复用纯 C# Entity 对象，通过 `AddPooledChild/Component` 使用。
-- Unity Framework `IInstancePool`：复用由资源系统加载的 GameObject，通过 `RentAsync`/`InstanceRef.Dispose` 使用。
-
-二者生命周期、资源所有权和 API 完全不同。
+Core 对象池只复用纯 C# Entity 对象，通过 `AddPooledChild/Component` 使用。GameObject、资源实例和业务数据的复用由 Unity 适配层或业务系统负责，不属于 Core 对象池契约；两者不得共享生命周期假设或引用句柄。
 
 [返回知识库首页](README.md)

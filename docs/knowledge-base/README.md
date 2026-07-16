@@ -11,8 +11,7 @@
 - 需要更新、更新要求或对象池：阅读[调度、更新要求与池化](03-scheduling-dependency-pooling.md)。
 - 需要安全保存引用或定位结构问题：阅读[引用、诊断与日志](04-reference-diagnostics-logging.md)。
 - 在 Unity 中接入：阅读[Unity 适配层](05-unity-integration.md)。
-- 使用完整游戏服务：阅读[Unity Framework](06-unity-framework.md)。
-- 使用远程调试或 GPU 地形：阅读[工具与扩展包](07-tools-and-extensions.md)。
+- 使用远程调试：阅读[工具与扩展包](07-tools-and-extensions.md)。
 - 查方法、约束或常见报错：阅读[API 速查](08-api-cheatsheet.md)和[故障排查](09-troubleshooting.md)。
 
 ## 包边界
@@ -20,14 +19,11 @@
 ```text
 GameEntity Core（纯 C#，net8.0 / netstandard2.1）
 └── GameEntity for Unity（Unity 生命周期、日志和 Hierarchy 投影）
-    ├── GameEntity Unity Framework（游戏服务集合，依赖 YooAsset、uGUI）
-    │   ├── Framework Extension（当前提供输入扩展）
-    │   └── GPU Terrain（Unity 6 + URP 17.3）
     └── GameEntity Unity Debugger（远程诊断客户端）
         └── GameEntity Debug Server（Go 服务 + Web Console）
 ```
 
-核心库不知道 Unity。Unity Hierarchy 中的 GameObject 是调试视图，不是 Entity 数据源。Framework 和 GPU Terrain 都是可选层，不应反向侵入 Core。
+核心库不知道 Unity。Unity Hierarchy 中的 GameObject 是调试视图，不是 Entity 数据源。Unity 侧工具不应反向侵入 Core。
 
 ## 核心心智模型
 
